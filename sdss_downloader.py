@@ -13,30 +13,28 @@
 
 from threading import Thread
 
+from math import hypot
 from time import time, sleep
 import urllib2
 import sys
 import os
 
-from numpy import load, hypot, where
-from scipy.ndimage import minimum_position
-
-def findField(objRA, objDEC):
-    dists = hypot(objRA - gridRA, objDEC - gridDEC)
-    inds = dists.argsort()
-    for i in inds:
-        run = runList[i]
-        rerun = rerunList[i]
-        camcol = camcolList[i]
-        field = fiedlList[i]
-        u = getUrl(run, rerun, camcol, field, 'g')
-        if dists[i] > 0.1392:
-            run, rerun, camcol, field = -1, -1, -1, -1
-            break
-        if (testUrlExists(u) > 0):
-            break
-    return run, rerun, camcol, field
-
+def findField2(objRA, objDEC):
+    radius = 30
+    request = "http://skyserver.sdss3.org/dr9/en/tools/search/x_radial.asp?ra=%1.5f&dec=%1.5f&radius=10&min_u=0&max_u=20&min_g=0&max_g=20&min_r=0&max_r=20&min_i=0&max_i=20&min_z=0&max_z=20&entries=top&topnum=10&format=csv" % (objRA, objDEC)
+    u = urllib2.urlopen(request)
+    table = u.read().split("\n")
+    minDist = 1e10
+    for line in table[1:-1]:
+        objid, run, rerun, camcol, field, obj, t, ra, dec, u, g, r, i, z, E_u, E_g, E_r, E_i, Err_z = [float(i) for i in line.split(',')]
+        dist = hypot(objRA -ra, objDEC - dec)
+        if dist < minDist:
+            minDist = int(dist)
+            optRun = int(run)
+            optRerun = int(rerun)
+            optCamcol = int(camcol)
+            optField = int(field)
+    return optRun, optRerun, optCamcol, optField
 
 def getUrl(run, rerun, camcol, field, band):
     return "http://data.sdss3.org/sas/dr9/boss/photoObj/frames/%s/%i/%i/frame-%s-%.6i-%i-%.4i.fits.bz2" % (
@@ -78,20 +76,6 @@ def threadsAlive(listOfThreads):
     return False
 
 
-gridRA = load("./data/ra.npy")
-gridDEC = load("./data/dec.npy")
-runList = load("./data/run.npy")
-rerunList = load("./data/rerun.npy")
-camcolList = load("./data/camcol.npy")
-fiedlList = load("./data/field.npy")
-mu_startList = load("./data/mu_start.npy")
-mu_endList = load("./data/mu_end.npy")
-nu_startList = load("./data/nu_start.npy")
-nu_endList = load("./data/nu_end.npy")
-
-
-
-
 bandlist = sys.argv[1]
 
 for band in bandlist:
@@ -118,7 +102,7 @@ with open("coords2fields.dat", "w", buffering=0) as outFile:
             dec = float(params[1])
             galName = None
             print "\033[33m Downloading field for %1.5f %1.5f  (%i/%i) \033[0m" % (ra, dec, counter, len(listOfCoords))
-        run, rerun, camcol, field = findField(ra, dec)
+        run, rerun, camcol, field = findField2(ra, dec)
         # Check if fits files exist for all filters:
         print " Checking file existense:"
         allExist = True
