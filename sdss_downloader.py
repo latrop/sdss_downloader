@@ -23,6 +23,8 @@ def findField2(objRA, objDEC, radius):
         request = "http://skyserver.sdss3.org/dr9/en/tools/search/x_radial.asp?ra=%1.5f&dec=%1.5f&radius=%1.2f&min_u=0&max_u=20&min_g=0&max_g=20&min_r=0&max_r=20&min_i=0&max_i=20&min_z=0&max_z=20&entries=top&topnum=500&format=csv" % (objRA, objDEC, radius)
     u = urllib2.urlopen(request)
     table = u.read().split("\n")
+    if len(table) < 2:
+        return [(-1, -1, -1, 1)], -1
     # Find the nearest object and the corresponding field
     minDist = 1e10
     for line in table[1:-1]:
@@ -123,6 +125,8 @@ errFile.truncate(0)
 with open("fields.dat", "w", buffering=0) as outFile:
     outFile.truncate(0)
     for line in listOfCoords:
+        if line.startswith("#") or line.startswith("!"):
+            continue
         startTime = time()
         counter += 1
         params = line.split()
@@ -163,7 +167,7 @@ with open("fields.dat", "w", buffering=0) as outFile:
                 print "\033[32m [OK] \033[0m   (%i bytes)" % (answer)
                 urls[band] = url
             if not allExist:
-                errFile.write("%1.6f  %1.6f   %s \n" % (ra, dec, url.split("/")[-1][8:-9]))
+                errFile.write("%s  %1.6f  %1.6f \n" % (galName, ra, dec))
                 continue
             downloadThreads = []
             for band in bandlist:
