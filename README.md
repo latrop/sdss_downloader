@@ -10,11 +10,11 @@ it anywhere you want.
 
 USAGE
 
-    The program requires a table with coordinates of desired objects. The table
-must contain three columns: the first one -- names of objects (they need not to belong to
-any catalogue, just string for filenames, it has to be unique),
-the second one -- RA in degrees, the third one -- DEC in degrees. By default the name of this
-file is 'coordinates.dat', but you can specify an arbitrary name (see KEYS section).
+    The program requires a table with coordinates of desired objects. The table must
+contain three columns: the first one -- names of objects (they need not to belong to
+any catalogue, just string for filenames, it has to be unique), the second one -- RA
+in degrees, the third one -- DEC in degrees. By default the name of this file is
+'coordinates.dat', but you can specify an arbitrary name (see KEYS section).
     The only one comand line argument that is needed is a set of filters. The set of
 filters must by specified as a solid string of lowercase letters, for example urz or ugriz.
 
