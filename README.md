@@ -10,7 +10,7 @@ it anywhere you want.
 
 USAGE
 
-    The program requires a table with coordinates of desired objects. The table must
+The program requires a table with coordinates of desired objects. The table must
 contain three columns: the first one -- names of objects (they need not to belong to
 any catalogue, just string for filenames, it has to be unique), the second one -- RA
 in degrees, the third one -- DEC in degrees. By default the name of this file is
