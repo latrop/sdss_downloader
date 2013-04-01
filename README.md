@@ -52,7 +52,7 @@ The fields will be downloaded in the 'downloads' directory, each filter in separ
 in the same directory with downloaded files.
    The program generates also two ASCII files: 'fiedls.dat' with lists of the downloaded fields
 for each object and 'errors_404.dat' with a list of objects which have not been downloaded
-due to "not foun" or "connection" errors.
+due to "not found" or "connection" errors.
 
 
 EXAMPLES
@@ -60,4 +60,4 @@ EXAMPLES
     python ./sdss_downloader.py gri -i mygalaxies.dat -r 0.5 -s
 
 downloades all fields within 0.5 arcminutes for objects from file 'mygalaxies.dat'
-in filters g, r and i.
+in filters g, r and i and creates scripts to concatenate ajacent fields.
