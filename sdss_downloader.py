@@ -62,6 +62,9 @@ def getUrl(run, rerun, camcol, field, band):
     return "http://data.sdss3.org/sas/dr9/boss/photoObj/frames/%s/%i/%i/frame-%s-%.6i-%i-%.4i.fits.bz2" % (
         rerun, run, camcol, band, run, camcol, field)
 
+def getUrlPs(run, rerun, camcol, field):
+    return "http://data.sdss3.org/sas/dr9/env/PHOTO_REDUX/%s/%i/objcs/%i/psField-%.6i-%i-%.4i.fit" % (
+        rerun, run, camcol, run, camcol, field)
 
 def testUrlExists(url):
     try:
@@ -84,7 +87,10 @@ def download(url, passband, file_name):
         return -1
     meta = u.info()
     file_size = int(meta.getheaders("Content-Length")[0])
-    f = open("./downloads/%s/%s_%s.fits.bz2" % (passband, file_name, passband), 'wb')
+    if passband == "ps":
+        f = open("./downloads/%s/%s_%s.fits" % (passband, file_name, passband), 'wb')
+    else:
+        f = open("./downloads/%s/%s_%s.fits.bz2" % (passband, file_name, passband), 'wb')
     buff = u.read(file_size)
     f.write(buff)
     f.close()
@@ -100,16 +106,23 @@ parser.add_argument("filters", help="List of filters (for example gri or uiz)")
 parser.add_argument("-i", "--input", default="coordinates.dat", help="File with coordinates to download")
 parser.add_argument("-r", "--radius", default=0.0, help="Download ajacent fields if any exist in r arcmin (max 60 arcmin)", type=float)
 parser.add_argument("-s", "--script", action="store_true", default=False, help="Create a script for concatenation by SWarp.")
+parser.add_argument("-p", "--ps", action="store_true", default=False, help="Download psField files.")
 args = parser.parse_args()
 
 if args.radius > 60:
     print "Radius must by less than 60 arcmin"
     sys.exit(1)
 
+# Make dirs for all bands
 bandlist = args.filters
 for band in bandlist:
     if not os.path.exists("./downloads/%s" % (band)):
         os.makedirs("./downloads/%s" % (band))
+
+# Make dir for ps
+if args.ps:
+    if not os.path.exists("./downloads/ps/"):
+        os.makedirs("./downloads/ps/")
 
 if args.script:
     for band in bandlist:
@@ -166,12 +179,29 @@ with open("fields.dat", "w", buffering=0) as outFile:
                     break
                 print "\033[32m [OK] \033[0m   (%i bytes)" % (answer)
                 urls[band] = url
+            if args.ps:
+                # Check if ps file exists
+                print "                   ps",
+                urlPs = getUrlPs(run, rerun, camcol, field)
+                answer = testUrlExists(urlPs)
+                if answer == -1:
+                    allExist = False
+                    print "\033[31m [Fail!] \033[0m\n"
+                else:
+                    print "\033[32m [OK] \033[0m   (%i bytes)" % (answer)
             if not allExist:
                 errFile.write("%s  %1.6f  %1.6f \n" % (galName, ra, dec))
                 continue
             downloadThreads = []
+            # Downloading files in all passbands
             for band in bandlist:
                 dth = Thread(target=download, args=(urls[band], band, curGalName))
+                dth.daemon = True
+                dth.start()
+                downloadThreads.append(dth)
+            # Downloading ps file
+            if args.ps:
+                dth = Thread(target=download, args=(urlPs, "ps", curGalName))
                 dth.daemon = True
                 dth.start()
                 downloadThreads.append(dth)

@@ -44,6 +44,8 @@ KEYS
 			       files as it is, you must not rename or unpack them). SWarp package
 			       have to be installed on your system.
 
+    -p, --ps		       Download psFields files (if you want to get a PSF data). Will be
+			       stored into downloads/ps directory.
 
 OUTPUT
 
