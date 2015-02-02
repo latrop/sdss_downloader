@@ -104,14 +104,12 @@ def threadsAlive(listOfThreads):
 parser = argparse.ArgumentParser(description="Download fits-files of fields for specified coordinates")
 parser.add_argument("filters", help="List of filters (for example gri or uiz)")
 parser.add_argument("-i", "--input", default="coordinates.dat", help="File with coordinates to download")
-parser.add_argument("-r", "--radius", default=0.0, help="Download ajacent fields if any exist in r arcmin (max 60 arcmin)", type=float)
+parser.add_argument("-a", "--adjacent", action="store_true", 
+                    default=False, help="Download adjacent fields if any exist")
 parser.add_argument("-s", "--script", action="store_true", default=False, help="Create a script for concatenation by SWarp.")
 parser.add_argument("-p", "--ps", action="store_true", default=False, help="Download psField files.")
 args = parser.parse_args()
 
-if args.radius > 60:
-    print "Radius must by less than 60 arcmin"
-    sys.exit(1)
 
 # Make dirs for all bands
 bandlist = args.filters
@@ -144,15 +142,19 @@ with open("fields.dat", "w", buffering=0) as outFile:
         counter += 1
         params = line.split()
 
-        if len(params) == 3:
+        if (len(params) in (3, 4)) or ((len(params) == 4) and (args.adjacent is True)):
             galName = params[0]
             ra = float(params[1])
             dec = float(params[2])
+            if args.adjacent is True:
+                r_adj = float(params[3])
+            else:
+                r_adj = 0.0
             print "\033[33m Downloading field for %1.5f %1.5f: '%s'  (%i/%i) \033[0m" % (ra, dec, galName, counter, len(listOfCoords))
         else:
-            print "%s must contain three columns: name, RA and DEC" % (args.input)
+            print "Invalid number of columns in input file %s" % args.input
             sys.exit(1)
-        objFieldList, objID = findField2(ra, dec, args.radius)
+        objFieldList, objID = findField2(ra, dec, r_adj)
 
         if len(objFieldList) > 1:
             print "There are %i files for this object" % (len(objFieldList))
