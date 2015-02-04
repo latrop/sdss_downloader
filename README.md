@@ -54,6 +54,10 @@ One can free some disc space by removing original separated fields after concate
 parameter turned on package will automatically delete these fields. One can keep them by
 omitting this parameter.
 
+    -t, --trim
+Crop (trim) image of galaxy to size given in the fourth column of the input file. Result is square FITS
+file with size 2*r and with galaxy located at the centre of the image.
+
     -p, --ps
 Download psFields files (if you want to get a PSF data). Will be stored into downloads/ps directory.
 

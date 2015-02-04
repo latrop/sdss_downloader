@@ -236,6 +236,7 @@ parser.add_argument("-a", "--adjacent", action="store_true",
 parser.add_argument("-s", "--swarp", action="store_true", default=False, help="Concatenate fields using SWarp package")
 parser.add_argument("-c", "--convert", action="store_true", default=False, help="Convert fields to the same photometry zeropoint")
 parser.add_argument("-f", "--free", action="store_true", default=False, help="Remove individual fields after concatenation")
+parser.add_argument("-t", "--trim", action="store_true", default=False, help="Crop image to galaxy size")
 parser.add_argument("-p", "--ps", action="store_true", default=False, help="Download psField files")
 args = parser.parse_args()
 
@@ -378,3 +379,31 @@ with open("fields.dat", "w", buffering=0) as outFile:
                 header["READOUT"] = np.mean(READOUTList)
                 header["M0"] = np.mean(m0List)
                 hdu.flush()
+                # Crop images
+                print "Cropping..."
+                if args.trim:
+                    # we need astropy to run this option
+                    try:
+                        from astropy import wcs
+                    except ImportError:
+                        print "Error: astropy module was not found."
+                        print "Cropping is impossible."
+                        print "Install astropy or remove -t option."
+                        exit(1)
+                hdu = pyfits.open("./downloads/%s/%s_%s.fits"%(band, galName, band))
+                data = hdu[0].data
+                header = hdu[0].header
+                wcs = wcs.WCS("./downloads/%s/%s_%s.fits"%(band, galName, band))
+                xGalPix, yGalPix = wcs.wcs_world2pix([[ra, dec]], 1)[0]
+                size = min(r_adj*60.0/0.396127, xGalPix, yGalPix, data.shape[1]-xGalPix, data.shape[0]-yGalPix)
+                xCropMin = xGalPix - size
+                xCropMax = xGalPix + size
+                yCropMin = yGalPix - size
+                yCropMax = yGalPix + size
+                data = data[yCropMin:yCropMax, xCropMin:xCropMax]
+                #print name, int(xGalPix), int(yGalPix), "|", int(xCropMin), int(xCropMax), int(yCropMin), int(yCropMax), sizes[name]
+                outHDU = pyfits.PrimaryHDU(data=data, header=header)
+                filename = "./downloads/%s/%s_%s_trim.fits"%(band, galName, band)
+                if os.path.exists(filename):
+                    os.remove(filename)
+                outHDU.writeto(filename)
