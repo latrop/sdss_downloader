@@ -57,6 +57,8 @@ omitting this parameter.
     -t, --trim
 Crop (trim) image of galaxy to size given in the fourth column of the input file. Result is square FITS
 file with size 2*r and with galaxy located at the centre of the image.
+Note: to run this option one must have the astropy module installed. Try 'pip install astropy' to install it.
+See astropy.org for details.
 
     -p, --ps
 Download psFields files (if you want to get a PSF data). Will be stored into downloads/ps directory.
