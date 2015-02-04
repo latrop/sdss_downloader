@@ -1,20 +1,21 @@
 #! /usr/bin/env python
 
-
 #                                
 #  Author: Sergey Savchenko (savchenko.s.s@gmail.com)
 #
 
-
 from threading import Thread
-
-from math import hypot
+import subprocess
+from math import hypot, log10, sqrt
 from time import time, sleep
 import urllib2
 import sys
 import os
-
+import shutil
 import argparse
+
+import numpy as np
+import pyfits
 
 def findField2(objRA, objDEC, radius):
     if radius < 0.001:
@@ -58,13 +59,16 @@ def findField2(objRA, objDEC, radius):
                 fList.append((run, rerun, camcol, field))
     return fList, optObjID
 
+
 def getUrl(run, rerun, camcol, field, band):
     return "http://data.sdss3.org/sas/dr9/boss/photoObj/frames/%s/%i/%i/frame-%s-%.6i-%i-%.4i.fits.bz2" % (
         rerun, run, camcol, band, run, camcol, field)
 
+
 def getUrlPs(run, rerun, camcol, field):
     return "http://data.sdss3.org/sas/dr9/env/PHOTO_REDUX/%s/%i/objcs/%i/psField-%.6i-%i-%.4i.fit" % (
         rerun, run, camcol, run, camcol, field)
+
 
 def testUrlExists(url):
     try:
@@ -95,19 +99,144 @@ def download(url, passband, file_name):
     f.write(buff)
     f.close()
 
+
 def threadsAlive(listOfThreads):
     for th in listOfThreads:
         if th.isAlive():
             return True
     return False
 
+
+### some sdss functions are below
+def prep_ima(gal):
+    new_gal = "./prep_ima_tmp.fits"
+    # This function re-writes pixel values given in NMgy to ADU
+    hdulist = pyfits.open(gal, do_not_scale_image_data=True, mode='update')
+    img = hdulist[0].data
+    (dimy,dimx) = img.shape
+    cimg = np.zeros(shape=(dimy,dimx))
+    nrowc = dimy
+    calib = hdulist[1].data
+    for i in range(dimy):
+        cimg[i] = calib 
+    dn = img/cimg
+    shutil.copy(gal, new_gal) 
+    hdulist1 = pyfits.open(new_gal, do_not_scale_image_data=True, mode='update')
+    img_new = hdulist1[0].data
+    for i in range(dimy):
+        for k in range(dimx):
+            img_new[i,k] = dn[i,k]  #new fits-file img_new with ADU    
+    hdulist1.flush()
+    os.remove(gal)
+    shutil.move(new_gal, gal)
+
+def gain_dark_SDSS(camcol,band,run):
+    if band=='u':
+        if camcol==1:
+            gaidark = [1.62,9.61]
+        if camcol==2:
+            if run<1100:
+                gaidark = [1.595,12.6025]        
+            else:
+                gaidark = [1.825,12.6025]
+        if camcol==3:
+            gaidark = [1.59,8.7025]
+        if camcol==4:
+            gaidark = [1.6,12.6025]
+        if camcol==5:
+            gaidark = [1.47,9.3025]
+        if camcol==6:
+            gaidark = [2.17,7.0225]
+    if band=='g':
+        if camcol==1:
+            gaidark = [3.32,15.6025]
+        if camcol==2:
+            gaidark = [3.855,1.44]        
+        if camcol==3:
+            gaidark = [3.845,1.3225]
+        if camcol==4:
+            gaidark = [3.995,1.96]
+        if camcol==5:
+            gaidark = [4.05,1.1025]
+        if camcol==6:
+            gaidark = [4.035,1.8225]
+    if band=='r':
+        if camcol==1:
+            gaidark = [4.71,1.8225]
+        if camcol==2:
+            gaidark = [4.6,1.00]        
+        if camcol==3:
+            gaidark = [4.72,1.3225]
+        if camcol==4:
+            gaidark = [4.76,1.3225]
+        if camcol==5:
+            gaidark = [4.725,0.81]
+        if camcol==6:
+            gaidark = [4.895,0.9025]
+    if band=='i':
+        if camcol==1:
+            gaidark = [5.165,7.84]
+        if camcol==2:
+            if run<1500:
+                gaidark = [6.565,5.76]
+            if run>1500:
+                gaidark = [6.565,6.25]            
+        if camcol==3:
+            gaidark = [4.86,4.6225]
+        if camcol==4:
+            if run<1500:
+                gaidark = [4.885,6.25]
+            if run>1500:
+                gaidark = [4.885,7.5625]    
+        if camcol==5:
+            gaidark = [4.64,7.84]
+        if camcol==6:
+            gaidark = [4.76,5.0625]
+
+    if band=='z':
+        if camcol==1:
+            gaidark = [4.745,0.81]
+        if camcol==2:
+            gaidark = [5.155,1.0]        
+        if camcol==3:
+            gaidark = [4.885,1.0]
+        if camcol==4:
+            if run<1500:
+                gaidark = [4.775,9.61]
+            if run>1500:
+                gaidark = [4.775,12.6025]    
+        if camcol==5:
+            if run<1500:
+                gaidark = [3.48,1.8225]
+            if run>1500:
+                gaidark = [3.48,2.1025]    
+        if camcol==6:
+            gaidark = [4.69,1.21]
+    return gaidark[0],gaidark[1]
+
+def SDSS_dr8(gal_image):
+    #http://data.sdss3.org/datamodel/files/BOSS_PHOTOOBJ/frames/RERUN/RUN/CAMCOL/frame.html
+    hdulist = pyfits.open(gal_image)
+    prihdr = hdulist[0].header
+    run = int(prihdr['RUN'])
+    band = str(prihdr['FILTER'])
+    camcol = int(prihdr['CAMCOL'])
+    kkk = prihdr['NMGY']
+    m0 = 22.5 - 2.5*log10(kkk)        
+    GAIN,var = gain_dark_SDSS(camcol,band,run)
+    read_out_noise = sqrt(var)*GAIN    # should be <~5 e
+    return GAIN, read_out_noise, m0
+
+# parsing the argument line here
 parser = argparse.ArgumentParser(description="Download fits-files of fields for specified coordinates")
 parser.add_argument("filters", help="List of filters (for example gri or uiz)")
 parser.add_argument("-i", "--input", default="coordinates.dat", help="File with coordinates to download")
 parser.add_argument("-a", "--adjacent", action="store_true", 
                     default=False, help="Download adjacent fields if any exist")
-parser.add_argument("-s", "--script", action="store_true", default=False, help="Create a script for concatenation by SWarp.")
-parser.add_argument("-p", "--ps", action="store_true", default=False, help="Download psField files.")
+parser.add_argument("-s", "--swarp", action="store_true", default=False, help="Concatenate fields using SWarp package")
+parser.add_argument("-c", "--convert", action="store_true", default=False, help="Convert fields to the same photometry zeropoint")
+parser.add_argument("-f", "--free", action="store_true", default=False, help="Remove individual fields after concatenation")
+parser.add_argument("-p", "--ps", action="store_true", default=False, help="Download psField files")
 args = parser.parse_args()
 
 
@@ -121,13 +250,6 @@ for band in bandlist:
 if args.ps:
     if not os.path.exists("./downloads/ps/"):
         os.makedirs("./downloads/ps/")
-
-if args.script:
-    for band in bandlist:
-        f = open("./downloads/%s/concatenate.sh" % (band), "w")
-        f.truncate(0)
-        f.close()
-
 
 listOfCoords = open(args.input).readlines()
 counter = 0
@@ -224,17 +346,35 @@ with open("fields.dat", "w", buffering=0) as outFile:
             print "         \033[34m [DONE] \033[0m    (%1.2f sec)\n\n" % (time()-startTime)
             outFile.write(" %s.fits " % (curGalName))
         outFile.write("\n")
-        if args.script and (len(objFieldList) > 1):
+
+        # Concatenating fields
+        if args.swarp and (len(objFieldList) > 1):
             for band in bandlist:
-                f = open("./downloads/%s/concatenate.sh" % (band), "a")
+                GAINList = []
+                READOUTList = []
+                m0List = []
                 for i in xrange(len(objFieldList)):
-                    f.write("bunzip2 %s_%i_%s.fits.bz2 \n" % (galName, i, band))
-                f.write("swarp ")
-                for i in xrange(len(objFieldList)):
-                    f.write(" %s_%i_%s.fits[0] " % (galName, i, band))
-                f.write("\n")
-                f.write("mv ./coadd.fits ./%s_%s.fits \n" % (galName, band))
-                for i in xrange(len(objFieldList)):
-                    f.write("rm %s_%i_%s.fits \n" % (galName, i, band))
-                f.write("rm coadd.weight.fits \n \n")
-                f.close()
+                    subprocess.call("bunzip2 ./downloads/%s/%s_%i_%s.fits.bz2" % (band, galName, i, band), shell=True)
+                    if args.convert:
+                        prep_ima("./downloads/%s/%s_%i_%s.fits" % (band, galName, i, band))
+                        GAIN, READOUT, m0 = SDSS_dr8("./downloads/%s/%s_%i_%s.fits" % (band, galName, i, band))
+                        GAINList.append(GAIN)
+                        READOUTList.append(READOUT)
+                        m0List.append(m0)
+                print "Running SWarp for %s band..." % (band)
+                callSwarpString = "swarp -verbose_type quiet "+" ".join([("./downloads/%s/%s_%i_%s.fits[0]"%(band, galName, i, band))
+                                                     for i in xrange(len(objFieldList))])
+                subprocess.call(callSwarpString, shell="True")
+                shutil.move("./coadd.fits", "./downloads/%s/%s_%s.fits"%(band, galName, band))
+                os.remove("coadd.weight.fits")
+                os.remove("swarp.xml")
+                if args.free:
+                    for i in xrange(len(objFieldList)):
+                        os.remove("./downloads/%s/%s_%i_%s.fits"%(band, galName, i, band))
+                # store mean keywords to coadded file
+                hdu = pyfits.open("./downloads/%s/%s_%s.fits"%(band, galName, band), do_not_scale_image_data=True, mode="update")
+                header = hdu[0].header
+                header["GAIN"] = np.mean(GAINList)
+                header["READOUT"] = np.mean(READOUTList)
+                header["M0"] = np.mean(m0List)
+                hdu.flush()
