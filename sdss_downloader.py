@@ -19,16 +19,19 @@ import pyfits
 
 def findField2(objRA, objDEC, radius):
     if radius < 0.001:
-        request = "http://skyserver.sdss3.org/dr9/en/tools/search/x_radial.asp?ra=%1.5f&dec=%1.5f&radius=2&min_u=0&max_u=20&min_g=0&max_g=20&min_r=0&max_r=20&min_i=0&max_i=20&min_z=0&max_z=20&entries=top&topnum=10&format=csv" % (objRA, objDEC)
+        request = "http://skyserver.sdss.org/dr12/en/tools/search/x_radial.aspx?ra=%1.5f&dec=%1.5f&radius=2&min_u=0&max_u=20&min_g=0&max_g=20&min_r=0&max_r=20&min_i=0&max_i=20&min_z=0&max_z=20&entries=top&topnum=100&format=csv" % (objRA, objDEC)
     else:
-        request = "http://skyserver.sdss3.org/dr9/en/tools/search/x_radial.asp?ra=%1.5f&dec=%1.5f&radius=%1.2f&min_u=0&max_u=20&min_g=0&max_g=20&min_r=0&max_r=20&min_i=0&max_i=20&min_z=0&max_z=20&entries=top&topnum=500&format=csv" % (objRA, objDEC, radius)
+        request = "http://skyserver.sdss.org/dr12/en/tools/search/x_radial.aspx?ra=%1.5f&dec=%1.5f&radius=%1.2f&min_u=0&max_u=20&min_g=0&max_g=20&min_r=0&max_r=20&min_i=0&max_i=20&min_z=0&max_z=20&entries=top&topnum=10000&format=csv" % (objRA, objDEC, radius)
     u = urllib2.urlopen(request)
     table = u.read().split("\n")
     if len(table) < 2:
         return [(-1, -1, -1, 1)], -1
     # Find the nearest object and the corresponding field
     minDist = 1e10
-    for line in table[1:-1]:
+    for line in table:
+        # ignore comments, header and footer of table
+        if (len(line)==0) or (not line[0].isdigit()):
+            continue
         objParams = line.split(',')
         objID  = int(objParams[0])
         run    = int(objParams[1])
@@ -49,7 +52,10 @@ def findField2(objRA, objDEC, radius):
     if radius < 0.001:
         return fList, optObjID
     else:
-        for line in table[1:-1]:
+        for line in table:
+            # ignore comments, header and footer of table
+            if (len(line)==0) or (not line[0].isdigit()):
+                continue
             objParams = line.split(',')
             run    = int(objParams[1])
             rerun  = int(objParams[2])
@@ -61,12 +67,12 @@ def findField2(objRA, objDEC, radius):
 
 
 def getUrl(run, rerun, camcol, field, band):
-    return "http://data.sdss3.org/sas/dr9/boss/photoObj/frames/%s/%i/%i/frame-%s-%.6i-%i-%.4i.fits.bz2" % (
+    return "http://dr12.sdss3.org/sas/dr12/boss/photoObj/frames/%s/%i/%i/frame-%s-%.6i-%i-%.4i.fits.bz2" % (
         rerun, run, camcol, band, run, camcol, field)
 
 
 def getUrlPs(run, rerun, camcol, field):
-    return "http://data.sdss3.org/sas/dr9/env/PHOTO_REDUX/%s/%i/objcs/%i/psField-%.6i-%i-%.4i.fit" % (
+    return "http://dr12.sdss3.org/sas/dr12/env/PHOTO_REDUX/%s/%i/objcs/%i/psField-%.6i-%i-%.4i.fit" % (
         rerun, run, camcol, run, camcol, field)
 
 
@@ -261,7 +267,6 @@ with open("fields.dat", "w", buffering=0) as outFile:
     for line in listOfCoords:
         if line.startswith("#") or line.startswith("!"):
             continue
-        startTime = time()
         counter += 1
         params = line.split()
 
@@ -283,6 +288,7 @@ with open("fields.dat", "w", buffering=0) as outFile:
             print "There are %i files for this object" % (len(objFieldList))
         outFile.write("%s  %1.6f  %1.6f  " % (galName, ra, dec))
         for ifield in xrange(len(objFieldList)):
+            startTime = time()
             if len(objFieldList) > 1:
                 print "Downloading (%i/%i)" % (ifield + 1, len(objFieldList))
                 curGalName = galName + "_" + str(ifield)

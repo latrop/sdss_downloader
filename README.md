@@ -1,4 +1,4 @@
-This program downloads fits files with fields from SDSS DR9 for specified coordinates.
+This program downloads fits files with fields from SDSS DR12 for specified coordinates.
 It needs only Python >= 2.6 to run, nothing else.
 
 
