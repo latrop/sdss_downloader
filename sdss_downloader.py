@@ -136,6 +136,20 @@ def prep_ima(gal):
     os.remove(gal)
     shutil.move(new_gal, gal)
 
+
+def change_m0(fitsName, oldM0Value, refM0):
+    # function changes value of magnitude zeropoint to a given one
+    hdulist = pyfits.open(fitsName)
+    data = hdulist[0].data
+    header = hdulist[0].header
+    deltaM0 = refM0 - oldM0Value
+    data = data * (10.0**(0.4*deltaM0))
+    outHDU = pyfits.PrimaryHDU(data=data, header=header)
+    outHDU.writeto("tmp.fits")
+    os.remove(fitsName)
+    shutil.move("tmp.fits", fitsName)
+
+
 def gain_dark_SDSS(camcol,band,run):
     if band=='u':
         if camcol==1:
@@ -365,9 +379,12 @@ with open("fields.dat", "w", buffering=0) as outFile:
                     if args.convert:
                         prep_ima("./downloads/%s/%s_%i_%s.fits" % (band, galName, i, band))
                         GAIN, READOUT, m0 = SDSS_dr8("./downloads/%s/%s_%i_%s.fits" % (band, galName, i, band))
+                        if i == 0:
+                            refM0 = m0
+                        else:
+                            change_m0("./downloads/%s/%s_%i_%s.fits" % (band, galName, i, band), m0, refM0)
                         GAINList.append(GAIN)
                         READOUTList.append(READOUT)
-                        m0List.append(m0)
                 print "Running SWarp for %s band..." % (band)
                 callSwarpString = "swarp -verbose_type quiet "+" ".join([("./downloads/%s/%s_%i_%s.fits[0]"%(band, galName, i, band))
                                                      for i in xrange(len(objFieldList))])
@@ -383,7 +400,7 @@ with open("fields.dat", "w", buffering=0) as outFile:
                 header = hdu[0].header
                 header["GAIN"] = np.mean(GAINList)
                 header["READOUT"] = np.mean(READOUTList)
-                header["M0"] = np.mean(m0List)
+                header["M0"] = refM0
                 hdu.flush()
                 # Crop images
                 if args.trim:
