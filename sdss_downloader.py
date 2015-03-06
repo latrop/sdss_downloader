@@ -386,8 +386,9 @@ with open("fields.dat", "w", buffering=0) as outFile:
                         GAINList.append(GAIN)
                         READOUTList.append(READOUT)
                 print "Running SWarp for %s band..." % (band)
-                callSwarpString = "swarp -verbose_type quiet "+" ".join([("./downloads/%s/%s_%i_%s.fits[0]"%(band, galName, i, band))
-                                                     for i in xrange(len(objFieldList))])
+                callSwarpString = "swarp -verbose_type quiet -BACK_TYPE MANUAL "
+                callSwarpString += " ".join([("./downloads/%s/%s_%i_%s.fits[0]"%(band, galName, i, band))
+                                             for i in xrange(len(objFieldList))])
                 subprocess.call(callSwarpString, shell="True")
                 shutil.move("./coadd.fits", "./downloads/%s/%s_%s.fits"%(band, galName, band))
                 os.remove("coadd.weight.fits")
@@ -430,3 +431,12 @@ with open("fields.dat", "w", buffering=0) as outFile:
                     if os.path.exists(filename):
                         os.remove(filename)
                     outHDU.writeto(filename)
+        elif args.convert and (len(objFieldList) == 1):
+            for band in bandlist:
+                subprocess.call("bunzip2 ./downloads/%s/%s_%s.fits.bz2" % (band, galName, band), shell=True)
+                prep_ima("./downloads/%s/%s_%s.fits" % (band, galName, band))
+                GAIN, READOUT, m0 = SDSS_dr8("./downloads/%s/%s_%s.fits" % (band, galName, band))
+                hdu = pyfits.open("./downloads/%s/%s_%s.fits"%(band, galName, band), do_not_scale_image_data=True, mode="update")
+                header = hdu[0].header
+                header["M0"] = m0
+                hdu.flush()
