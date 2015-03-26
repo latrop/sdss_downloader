@@ -17,6 +17,11 @@ import argparse
 import numpy as np
 import pyfits
 
+try:
+    from astropy.wcs import WCS
+    wcsOK = True
+except ImportError:
+    wcsOK = False
 
 def findField2(objRA, objDEC, radius):
     request = "http://skyserver.sdss.org/dr12/en/tools/search/x_radial.aspx?"
@@ -439,37 +444,8 @@ with open("fields.dat", "w", buffering=0) as outFile:
                 header["READOUT"] = np.mean(READOUTList)
                 header["M0"] = refM0
                 hdu.flush()
-                # Crop images
-                if args.trim:
-                    print "Cropping..."
-                    # we need astropy to run this option
-                    try:
-                        from astropy import wcs
-                    except ImportError:
-                        print "Error: astropy module was not found."
-                        print "Cropping is impossible."
-                        print "Install astropy or remove -t option."
-                        exit(1)
-                    fName = "./downloads/%s/%s_%s.fits" % (band, galName, band)
-                    hdu = pyfits.open(fName)
-                    data = hdu[0].data
-                    header = hdu[0].header
-                    wcs = wcs.WCS(fName)
-                    xGalPix, yGalPix = wcs.wcs_world2pix([[ra, dec]], 1)[0]
-                    size = min(r_adj*60.0/0.396127, xGalPix, yGalPix,
-                               data.shape[1]-xGalPix, data.shape[0]-yGalPix)
-                    xCropMin = xGalPix - size
-                    xCropMax = xGalPix + size
-                    yCropMin = yGalPix - size
-                    yCropMax = yGalPix + size
-                    data = data[yCropMin:yCropMax, xCropMin:xCropMax]
-                    outHDU = pyfits.PrimaryHDU(data=data, header=header)
-                    fName = "./downloads/%s/%s_%s_trim.fits" % (band, galName,
-                                                                band)
-                    if os.path.exists(fName):
-                        os.remove(fName)
-                    outHDU.writeto(fName)
-        elif args.convert and (len(objFieldList) == 1):
+        # Convert monofield files
+        if args.convert and (len(objFieldList) == 1):
             for band in bandlist:
                 fName = "./downloads/%s/%s_%s.fits" % (band, galName, band)
                 subprocess.call("bunzip2 %s.bz2" % (fName), shell=True)
@@ -480,3 +456,28 @@ with open("fields.dat", "w", buffering=0) as outFile:
                 header = hdu[0].header
                 header["M0"] = m0
                 hdu.flush()
+        # Crop images
+        if args.trim and (not wcsOK):
+            print "Astropy module was not found. Images cannot be trimmed"
+        elif args.trim and wcsOK:
+            for band in bandlist:            
+                print "Cropping..."
+                fName = "./downloads/%s/%s_%s.fits" % (band, galName, band)
+                hdu = pyfits.open(fName)
+                data = hdu[0].data
+                header = hdu[0].header
+                wcs = WCS(fName)
+                xGalPix, yGalPix = wcs.wcs_world2pix([[ra, dec]], 1)[0]
+                size = min(r_adj*60.0/0.396127, xGalPix, yGalPix,
+                           data.shape[1]-xGalPix, data.shape[0]-yGalPix)
+                xCropMin = xGalPix - size
+                xCropMax = xGalPix + size
+                yCropMin = yGalPix - size
+                yCropMax = yGalPix + size
+                data = data[yCropMin:yCropMax, xCropMin:xCropMax]
+                outHDU = pyfits.PrimaryHDU(data=data, header=header)
+                fOutName = "./downloads/%s/%s_%s_trim.fits" % (band, galName,
+                                                               band)
+                if os.path.exists(fOutName):
+                    os.remove(fOutName)
+                outHDU.writeto(fOutName)
