@@ -63,6 +63,13 @@ See astropy.org for details.
     -p, --ps
 Download psFields files (if you want to get a PSF data). Will be stored into downloads/ps directory.
 
+    --scatter
+This option forces the package to place all files related to every object into separate
+directory with name according to the object name. In other words, when downloading is finished
+there will be as many sub-directories in 'downloads' directory as objects in the input file.
+The default behaviour (without --scatter option) is to place in the same folder all images
+taken in the same filter.
+
 OUTPUT
 
 The fields will be downloaded in the 'downloads' directory, each filter in separate subdirectory

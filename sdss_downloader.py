@@ -11,6 +11,7 @@ from time import time, sleep
 import urllib2
 import sys
 import os
+import glob
 import shutil
 import argparse
 
@@ -112,7 +113,7 @@ def download(url, passband, file_name):
         return -1
     meta = u.info()
     file_size = int(meta.getheaders("Content-Length")[0])
-    fName = "./downloads/%s/%s_%s.fits" % (passband, file_name, passband)
+    fName = "./downloads/%s_%s.fits" % (file_name, passband)
     if passband != "ps":  # PSF-files are not compressed on SDSS servers
         fName += ".bz2"
     f = open(fName, 'wb')
@@ -283,19 +284,27 @@ parser.add_argument("-t", "--trim", action="store_true", default=False,
                     help="Crop image to galaxy size")
 parser.add_argument("-p", "--ps", action="store_true", default=False,
                     help="Download psField files")
+parser.add_argument("--scatter", action="store_true", default=False,
+                    help="Put every object in a separate directory")
 args = parser.parse_args()
 
 
-# Make dirs for all bands
 bandlist = args.filters
-for band in bandlist:
-    if not os.path.exists("./downloads/%s" % (band)):
-        os.makedirs("./downloads/%s" % (band))
+# Make dirs for all bands and psf in case all files for the same 
+# colour are in the same directories (scatter option is turned off)
+if not args.scatter:
+    for band in bandlist:
+        if not os.path.exists("./downloads/%s" % (band)):
+            os.makedirs("./downloads/%s" % (band))
+    if args.ps:
+        if not os.path.exists("./downloads/ps/"):
+            os.makedirs("./downloads/ps/")
+else:
+    # if every object will be placed in the separate directory
+    # (scatter option is on) create just the main downloads directory for now
+    if not os.path.exists("./downloads/"):
+        os.makedirs("./downloads/")
 
-# Make dir for ps
-if args.ps:
-    if not os.path.exists("./downloads/ps/"):
-        os.makedirs("./downloads/ps/")
 
 listOfCoords = open(args.input).readlines()
 counter = 0
@@ -408,8 +417,7 @@ with open("fields.dat", "w", buffering=0) as outFile:
                 READOUTList = []
                 m0List = []
                 for i in xrange(len(objFieldList)):
-                    fName = "./downloads/%s/%s_%i_%s.fits" % (band, galName,
-                                                              i, band)
+                    fName = "./downloads/%s_%i_%s.fits" % (galName, i, band)
                     subprocess.call("bunzip2 %s.bz2" % fName, shell=True)
                     if args.convert:
                         prep_ima(fName)
@@ -420,34 +428,36 @@ with open("fields.dat", "w", buffering=0) as outFile:
                             change_m0(fName, m0, refM0)
                         GAINList.append(GAIN)
                         READOUTList.append(READOUT)
+                        hdu = pyfits.open(fName, do_not_scale_image_data=True,
+                                          mode="update")
+                        header = hdu[0].header
+                        header["M0"] = refM0
+                        hdu.flush()
                 print "Running SWarp for %s band..." % (band)
                 callSt = "swarp -verbose_type quiet -BACK_TYPE MANUAL "
                 for i in xrange(len(objFieldList)):
-                    callSt += " ./downloads"
-                    callSt += "/%s/%s_%i_%s.fits[0]" % (band, galName, i, band)
+                    callSt += " ./downloads/%s_%i_%s.fits[0]" % (galName, i, band)
                 subprocess.call(callSt, shell="True")
-                fout = "./downloads/%s/%s_%s.fits" % (band, galName, band)
-                shutil.move("./coadd.fits", fout)
+                shutil.move("./coadd.fits", "./downloads/%s_%s.fits" % (galName, band))
                 os.remove("coadd.weight.fits")
                 os.remove("swarp.xml")
                 if args.free:
                     for i in xrange(len(objFieldList)):
-                        fN = "./downloads/%s/%s_%i_%s.fits" % (band, galName,
-                                                               i, band)
+                        fN = "./downloads/%s_%i_%s.fits" % (galName, i, band)
                         os.remove(fN)
                 # store mean keywords to coadded file
-                fName = "./downloads/%s/%s_%s.fits" % (band, galName, band)
-                hdu = pyfits.open(fName, do_not_scale_image_data=True,
+                hdu = pyfits.open("./downloads/%s_%s.fits" % (galName, band),
+                                  do_not_scale_image_data=True,
                                   mode="update")
                 header = hdu[0].header
                 header["GAIN"] = np.mean(GAINList)
                 header["READOUT"] = np.mean(READOUTList)
                 header["M0"] = refM0
                 hdu.flush()
-        # Convert monofield files
+        # Convert singlefield images
         if args.convert and (len(objFieldList) == 1):
             for band in bandlist:
-                fName = "./downloads/%s/%s_%s.fits" % (band, galName, band)
+                fName = "./downloads/%s_%s.fits" % (galName, band)
                 subprocess.call("bunzip2 %s.bz2" % (fName), shell=True)
                 prep_ima(fName)
                 GAIN, READOUT, m0 = SDSS_dr8(fName)
@@ -462,7 +472,7 @@ with open("fields.dat", "w", buffering=0) as outFile:
         elif args.trim and wcsOK:
             for band in bandlist:            
                 print "Cropping..."
-                fName = "./downloads/%s/%s_%s.fits" % (band, galName, band)
+                fName = "./downloads/%s_%s.fits" % (galName, band)
                 hdu = pyfits.open(fName)
                 data = hdu[0].data
                 header = hdu[0].header
@@ -476,8 +486,36 @@ with open("fields.dat", "w", buffering=0) as outFile:
                 yCropMax = yGalPix + size
                 data = data[yCropMin:yCropMax, xCropMin:xCropMax]
                 outHDU = pyfits.PrimaryHDU(data=data, header=header)
-                fOutName = "./downloads/%s/%s_%s_trim.fits" % (band, galName,
-                                                               band)
+                fOutName = "./downloads/%s_%s_trim.fits" % (galName, band)
                 if os.path.exists(fOutName):
                     os.remove(fOutName)
                 outHDU.writeto(fOutName)
+
+        # Downloading and processing are finished. Now we have to place files to folders
+        # according to scatter option
+        if args.scatter:
+            # every object has separate filder, where all files related to this object
+            # are located
+            fileList = glob.glob("./downloads/%s*.fits" % (galName))
+            dst = "./downloads/%s/" % (galName)
+            os.mkdir(dst)
+            for src in fileList:
+                shutil.move(src, dst)
+        else:
+            # scatter option is off, so all images taken in the same passband
+            # will be in the same folder.
+            for band in bandlist:
+                fileList = glob.glob("./downloads/%s_*%s.fits" % (galName, band))
+                if args.trim:
+                    fileList.append("./downloads/%s_%s_trim.fits" % (galName, band))
+                dst = "./downloads/%s/" % (band)
+                for src in fileList:
+                    if os.path.exists(src):
+                        shutil.move(src, dst)
+            if args.ps:
+                # move psFields
+                fileList = glob.glob("./downloads/%s_*ps.fits" % (galName))
+                dst = "./downloads/ps/"
+                for src in fileList:
+                    if os.path.exists(src):
+                        shutil.move(src, dst)
