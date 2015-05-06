@@ -432,6 +432,7 @@ with open("fields.dat", "w", buffering=0) as outFile:
                                           mode="update")
                         header = hdu[0].header
                         header["M0"] = refM0
+                        header["EXPTIME"] = 1.0
                         hdu.flush()
                 print "Running SWarp for %s band..." % (band)
                 callSt = "swarp -verbose_type quiet -BACK_TYPE MANUAL "
@@ -453,6 +454,7 @@ with open("fields.dat", "w", buffering=0) as outFile:
                 header["GAIN"] = np.mean(GAINList)
                 header["READOUT"] = np.mean(READOUTList)
                 header["M0"] = refM0
+                header["EXPTIME"] = 1.0
                 hdu.flush()
         # Convert singlefield images
         if args.convert and (len(objFieldList) == 1):
@@ -465,6 +467,7 @@ with open("fields.dat", "w", buffering=0) as outFile:
                                   mode="update")
                 header = hdu[0].header
                 header["M0"] = m0
+                header["EXPTIME"] = 1.0
                 hdu.flush()
         # Crop images
         if args.trim and (not wcsOK):
