@@ -14,6 +14,7 @@ import os
 import glob
 import shutil
 import argparse
+import bz2
 
 import numpy as np
 import pyfits
@@ -31,7 +32,6 @@ def move(src, dst):
         return
     shutil.copy(src, dst)
     os.remove(src)
-
 
 
 def findField2(objRA, objDEC, radius):
@@ -278,6 +278,18 @@ def SDSS_dr8(gal_image):
     return GAIN, read_out_noise, m0
 
 
+def bunzip(zipName):
+    bzipFile = bz2.BZ2File(zipName)
+    data = bzipFile.read()
+    outName = zipName[:-4]
+    if os.path.isfile(outName):
+        os.remove(outName)
+    outFile = open(outName, 'wb')
+    outFile.write(data)
+    outFile.close()
+    os.remove(zipName)
+
+
 # parsing the argument line here
 parser = argparse.ArgumentParser(
     description="Download fits-files of fields for specified coordinates")
@@ -451,7 +463,7 @@ with open("fields.dat", "w", buffering=0) as outFile:
                 m0List = []
                 for i in xrange(len(objFieldList)):
                     fName = "./downloads/%s_%i_%s.fits" % (galName, i, band)
-                    subprocess.call("bunzip2 %s.bz2" % fName, shell=True)
+                    bunzip("%s.bz2" % fName)
                     if args.convert:
                         prep_ima(fName)
                         GAIN, READOUT, m0 = SDSS_dr8(fName)
@@ -493,7 +505,7 @@ with open("fields.dat", "w", buffering=0) as outFile:
         if args.convert and (len(objFieldList) == 1):
             for band in bandlist:
                 fName = "./downloads/%s_%s.fits" % (galName, band)
-                subprocess.call("bunzip2 %s.bz2" % (fName), shell=True)
+                bunzip("%s.bz2" % (fName))
                 prep_ima(fName)
                 GAIN, READOUT, m0 = SDSS_dr8(fName)
                 hdu = pyfits.open(fName, do_not_scale_image_data=True,
