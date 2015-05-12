@@ -33,11 +33,13 @@ def findField2(objRA, objDEC, radius):
         request += "radius=%1.2f&" % (radius)
     request += "min_u=0&max_u=20&min_g=0&max_g=20&min_r=0&max_r=20&min_i=0&"
     request += "max_i=20&min_z=0&max_z=20&entries=top&topnum=10000&format=csv"
-
     u = urllib2.urlopen(request)
     table = u.read().split("\n")
-    if len(table) < 2:
-        return [(-1, -1, -1, 1)], -1
+    optRun = None
+    optRerun = None
+    optCamcol = None
+    optField = None
+    optObjID = None
     # Find the nearest object and the corresponding field
     minDist = 1e10
     for line in table:
@@ -336,6 +338,11 @@ with open("fields.dat", "w", buffering=0) as outFile:
             print "Invalid number of columns in input file %s" % args.input
             sys.exit(1)
         objFieldList, objID = findField2(ra, dec, r_adj)
+        if objID is None:
+            print "\033[31m Error! No object was found at given coordinates.\033[0m"
+            print "\033[31m This area is probably outside of the SDSS footprint.\033[0m"
+            errFile.write("%s  %1.6f  %1.6f \n" % (galName, ra, dec))
+            continue
 
         if len(objFieldList) > 1:
             print "There are %i files for this object" % (len(objFieldList))
