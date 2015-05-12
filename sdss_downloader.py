@@ -24,6 +24,16 @@ try:
 except ImportError:
     wcsOK = False
 
+
+def move(src, dst):
+    if not os.path.isfile(src):
+        print "File %s not found and cannot be moved"
+        return
+    shutil.copy(src, dst)
+    os.remove(src)
+
+
+
 def findField2(objRA, objDEC, radius):
     request = "http://skyserver.sdss.org/dr12/en/tools/search/x_radial.aspx?"
     request += "ra=%1.5f&dec=%1.5f&" % (objRA, objDEC)
@@ -152,7 +162,7 @@ def prep_ima(gal):
             img_new[i, k] = dn[i, k]  # new fits-file img_new with ADU
     hdulist1.flush()
     os.remove(gal)
-    shutil.move(new_gal, gal)
+    move(new_gal, gal)
 
 
 def change_m0(fitsName, oldM0Value, refM0):
@@ -165,7 +175,7 @@ def change_m0(fitsName, oldM0Value, refM0):
     outHDU = pyfits.PrimaryHDU(data=data, header=header)
     outHDU.writeto("tmp.fits")
     os.remove(fitsName)
-    shutil.move("tmp.fits", fitsName)
+    move("tmp.fits", fitsName)
 
 
 def gain_dark_SDSS(camcol, band, run):
@@ -308,6 +318,22 @@ else:
         os.makedirs("./downloads/")
 
 
+if args.swarp:
+    # Check what name has SWarp package on this system
+    rCode = subprocess.call("which swarp >/dev/null", shell=True)
+    if rCode == 0:
+        swarpName = "swarp"
+    else:
+        rCode = subprocess.call("which SWarp >/dev/null", shell=True)
+        if rCode == 0:
+            swarpName = "SWarp"
+        else:
+            print "\033[31m Error: SWarp was not found on your system.\033[0m"
+            print "\033[31m The command has to be either 'swarp' or 'SWarp'\033[0m"
+            print "\033[31m Intall SWarp package or try to run this script without -s option.\033[0m"
+            exit(1)
+
+
 listOfCoords = open(args.input).readlines()
 counter = 0
 errFile = open("errors_404.dat", "w", buffering=0)
@@ -442,11 +468,11 @@ with open("fields.dat", "w", buffering=0) as outFile:
                         header["EXPTIME"] = 1.0
                         hdu.flush()
                 print "Running SWarp for %s band..." % (band)
-                callSt = "swarp -verbose_type quiet -BACK_TYPE MANUAL "
+                callSt = "%s -verbose_type quiet -BACK_TYPE MANUAL " % (swarpName)
                 for i in xrange(len(objFieldList)):
                     callSt += " ./downloads/%s_%i_%s.fits[0]" % (galName, i, band)
                 subprocess.call(callSt, shell="True")
-                shutil.move("./coadd.fits", "./downloads/%s_%s.fits" % (galName, band))
+                move("./coadd.fits", "./downloads/%s_%s.fits" % (galName, band))
                 os.remove("coadd.weight.fits")
                 os.remove("swarp.xml")
                 if args.free:
@@ -508,9 +534,10 @@ with open("fields.dat", "w", buffering=0) as outFile:
             # are located
             fileList = glob.glob("./downloads/%s*.fits" % (galName))
             dst = "./downloads/%s/" % (galName)
-            os.mkdir(dst)
+            if not os.path.exists(dst):
+                os.mkdir(dst)
             for src in fileList:
-                shutil.move(src, dst)
+                move(src, dst)
         else:
             # scatter option is off, so all images taken in the same passband
             # will be in the same folder.
@@ -521,11 +548,11 @@ with open("fields.dat", "w", buffering=0) as outFile:
                 dst = "./downloads/%s/" % (band)
                 for src in fileList:
                     if os.path.exists(src):
-                        shutil.move(src, dst)
+                        move(src, dst)
             if args.ps:
                 # move psFields
                 fileList = glob.glob("./downloads/%s_*ps.fits" % (galName))
                 dst = "./downloads/ps/"
                 for src in fileList:
                     if os.path.exists(src):
-                        shutil.move(src, dst)
+                        move(src, dst)
