@@ -518,20 +518,32 @@ with open("fields.dat", "w", buffering=0) as outFile:
         if args.trim and (not wcsOK):
             print "Astropy module was not found. Images cannot be trimmed"
         elif args.trim and wcsOK:
-            for band in bandlist:            
-                print "Cropping..."
+            print "Cropping..."
+            # At first determine the common size of cropping area
+            # (so all images will be of the same size)
+            pixelCoords = {}
+            cropSizes = []
+            for band in bandlist:
                 fName = "./downloads/%s_%s.fits" % (galName, band)
                 hdu = pyfits.open(fName)
                 data = hdu[0].data
-                header = hdu[0].header
                 wcs = WCS(fName)
                 xGalPix, yGalPix = wcs.wcs_world2pix([[ra, dec]], 1)[0]
                 size = min(r_adj*60.0/0.396127, xGalPix, yGalPix,
                            data.shape[1]-xGalPix, data.shape[0]-yGalPix)
-                xCropMin = xGalPix - size
-                xCropMax = xGalPix + size
-                yCropMin = yGalPix - size
-                yCropMax = yGalPix + size
+                hdu.close()
+                pixelCoords[band] = (int(xGalPix), int(yGalPix))
+                cropSizes.append(size)
+            commonCropSize = int(min(cropSizes))
+            for band in bandlist:            
+                fName = "./downloads/%s_%s.fits" % (galName, band)
+                hdu = pyfits.open(fName)
+                data = hdu[0].data
+                header = hdu[0].header
+                xCropMin = pixelCoords[band][0] - commonCropSize
+                xCropMax = pixelCoords[band][0] + commonCropSize
+                yCropMin = pixelCoords[band][1] - commonCropSize
+                yCropMax = pixelCoords[band][1] + commonCropSize
                 data = data[yCropMin:yCropMax, xCropMin:xCropMax]
                 outHDU = pyfits.PrimaryHDU(data=data, header=header)
                 fOutName = "./downloads/%s_%s_trim.fits" % (galName, band)
