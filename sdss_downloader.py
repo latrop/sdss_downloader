@@ -550,6 +550,9 @@ with open("fields.dat", "w", buffering=0) as outFile:
                 if os.path.exists(fOutName):
                     os.remove(fOutName)
                 outHDU.writeto(fOutName)
+                hdu.close()
+                if args.free:
+                    os.remove(fName)
 
         # Downloading and processing are finished. Now we have to place files to folders
         # according to scatter option
