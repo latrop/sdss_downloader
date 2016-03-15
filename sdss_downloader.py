@@ -290,6 +290,30 @@ def bunzip(zipName):
     os.remove(zipName)
 
 
+def reduce_to_same_m0(listOfImages):
+    GAINList = []
+    READOUTList = []
+    m0List = []
+    for i, fName in enumerate(listOfImages):
+        bunzip("%s.bz2" % fName)
+        prep_ima(fName)
+        GAIN, READOUT, m0 = SDSS_dr8(fName)
+        if i == 0:
+            refM0 = m0
+        else:
+            change_m0(fName, m0, refM0)
+        GAINList.append(GAIN)
+        READOUTList.append(READOUT)
+        hdu = pyfits.open(fName, do_not_scale_image_data=True,
+                          mode="update")
+        header = hdu[0].header
+        header["M0"] = refM0
+        header["EXPTIME"] = 1.0
+        hdu.flush()
+    return GAINList, READOUTList, m0List, refM0
+
+
+
 # parsing the argument line here
 parser = argparse.ArgumentParser(
     description="Download fits-files of fields for specified coordinates")
@@ -310,6 +334,8 @@ parser.add_argument("-p", "--ps", action="store_true", default=False,
                     help="Download psField files")
 parser.add_argument("--scatter", action="store_true", default=False,
                     help="Put every object in a separate directory")
+parser.add_argument("--add_urls", default=None,
+                    help="File with additional urls of fields for objects")
 args = parser.parse_args()
 
 
@@ -454,53 +480,55 @@ with open("fields.dat", "w", buffering=0) as outFile:
             print msg
             outFile.write(" %s.fits " % (curGalName))
         outFile.write("\n")
+        
+        # If there are additional urls
+        thereAreAddFields = False
+        if args.add_urls is not None:
+            addNames = {}
+            for line in open(args.add_urls):
+                if line.split()[0] == galName:
+                    listOfAddUrls = line.split()[1:]
+                    thereAreAddFields = True
+                    for band in bandlist:
+                        addNames[band] = []
+                        for url in listOfAddUrls:
+                            urlBand = url.replace("*", band)
+                            outNameAdd = "./downloads/%s_%s" % (galName, urlBand.split("/")[-1])
+                            addNames[band].append(outNameAdd[:-4])
+                            print "Downloading additional field %s" % (outNameAdd)
+                            subprocess.call("wget -nv -O %s %s" % (outNameAdd, urlBand), shell=True)
+                    break
 
         # Concatenating fields
         if args.swarp and (len(objFieldList) > 1):
             for band in bandlist:
-                GAINList = []
-                READOUTList = []
-                m0List = []
-                for i in xrange(len(objFieldList)):
-                    fName = "./downloads/%s_%i_%s.fits" % (galName, i, band)
-                    bunzip("%s.bz2" % fName)
-                    if args.convert:
-                        prep_ima(fName)
-                        GAIN, READOUT, m0 = SDSS_dr8(fName)
-                        if i == 0:
-                            refM0 = m0
-                        else:
-                            change_m0(fName, m0, refM0)
-                        GAINList.append(GAIN)
-                        READOUTList.append(READOUT)
-                        hdu = pyfits.open(fName, do_not_scale_image_data=True,
-                                          mode="update")
-                        header = hdu[0].header
-                        header["M0"] = refM0
-                        header["EXPTIME"] = 1.0
-                        hdu.flush()
+                listOfImages = ["./downloads/%s_%i_%s.fits" % (galName, i, band) for i in xrange(len(objFieldList))]
+                if (args.add_urls is not None) and thereAreAddFields:
+                    listOfImages.extend(addNames[band])
+                if args.convert:
+                    GAINList, READOUTList, m0List, refM0 = reduce_to_same_m0(listOfImages)
                 print "Running SWarp for %s band..." % (band)
                 callSt = "%s -verbose_type quiet -BACK_TYPE MANUAL " % (swarpName)
-                for i in xrange(len(objFieldList)):
-                    callSt += " ./downloads/%s_%i_%s.fits[0]" % (galName, i, band)
+                callSt += " ".join(["%s[0]" % (s) for s in listOfImages])
                 subprocess.call(callSt, shell="True")
                 move("./coadd.fits", "./downloads/%s_%s.fits" % (galName, band))
                 os.remove("coadd.weight.fits")
                 os.remove("swarp.xml")
                 if args.free:
-                    for i in xrange(len(objFieldList)):
-                        fN = "./downloads/%s_%i_%s.fits" % (galName, i, band)
+                    for fN in listOfImages:
                         os.remove(fN)
                 # store mean keywords to coadded file
-                hdu = pyfits.open("./downloads/%s_%s.fits" % (galName, band),
-                                  do_not_scale_image_data=True,
-                                  mode="update")
-                header = hdu[0].header
-                header["GAIN"] = np.mean(GAINList)
-                header["READOUT"] = np.mean(READOUTList)
-                header["M0"] = refM0
-                header["EXPTIME"] = 1.0
-                hdu.flush()
+                if args.convert:
+                    hdu = pyfits.open("./downloads/%s_%s.fits" % (galName, band),
+                                      do_not_scale_image_data=True,
+                                      mode="update")
+                    header = hdu[0].header
+                    header["GAIN"] = np.mean(GAINList)
+                    header["READOUT"] = np.mean(READOUTList)
+                    header["M0"] = refM0
+                    header["EXPTIME"] = 1.0
+                    hdu.flush()
+
         # Convert singlefield images
         if args.convert and (len(objFieldList) == 1):
             for band in bandlist:
@@ -514,6 +542,7 @@ with open("fields.dat", "w", buffering=0) as outFile:
                 header["M0"] = m0
                 header["EXPTIME"] = 1.0
                 hdu.flush()
+
         # Crop images
         if args.trim and (not wcsOK):
             print "Astropy module was not found. Images cannot be trimmed"

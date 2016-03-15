@@ -70,6 +70,27 @@ there will be as many sub-directories in 'downloads' directory as objects in the
 The default behaviour (without --scatter option) is to place in the same folder all images
 taken in the same filter.
 
+    --add_urls  %file_with_urls%
+If for some reason SDSS server does not return all fields in the desired region, one can
+add this fields by specifying their full http addresses in the given file. The file must be
+organised as follows: object name (the same as in the file with coordinates) followed by
+list of urls separated by white spaces (thus one line per object). The filter character
+must be replaced with * symbol, script will automatically download these fields for every
+specified filter. For example, the next line is a correct line for this file:
+
+m81  http://data.sdss3.org/sas/dr12/boss/photoObj/frames/301/4294/4/frame-*-004294-4-0234.fits.bz2 http://data.sdss3.org/sas/dr12/boss/photoObj/frames/301/4294/5/frame-*-004294-5-0234.fits.bz2
+
+It contains urls for two additional fields for object 'm81'. Note the asterisk
+symbols at filter positions in given urls. 
+
+Important notes about --add_urls option.
+1) This option requires wget package to be installed on your system.
+2) Use this option with caution. Specified additional fields must be near to the main ones.
+SWarp package does not check proximity of the fields to be coadded and creates output
+file as large as it needed to fit all the fields. If some of the fields are far from other,
+the output file can be HUGE. The main list of fields is guarantied to be inside of the
+region specified by user, but additional fields are not being checked.
+
 OUTPUT
 
 The fields will be downloaded in the 'downloads' directory, each filter in separate subdirectory
