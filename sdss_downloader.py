@@ -35,14 +35,14 @@ def move(src, dst):
 
 
 def findField2(objRA, objDEC, radius):
-    request = "http://skyserver.sdss.org/dr12/en/tools/search/x_radial.aspx?"
+    request = "http://skyserver.sdss.org/SkyserverWS/dr12/SearchTools/RadialSearch?"
     request += "ra=%1.5f&dec=%1.5f&" % (objRA, objDEC)
     if radius < 0.01:
         request += "radius=2&"
     else:
         request += "radius=%1.2f&" % (radius)
-    request += "min_u=0&max_u=20&min_g=0&max_g=20&min_r=0&max_r=20&min_i=0&"
-    request += "max_i=20&min_z=0&max_z=20&entries=top&topnum=10000&format=csv"
+    request += "whichway=equitorial&limit=1000&format=csv&fp=none&"
+    request += "rband=0,18&whichquery=imaging"
     u = urllib2.urlopen(request)
     table = u.read().split("\n")
     optRun = None
