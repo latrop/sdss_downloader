@@ -34,15 +34,21 @@ def move(src, dst):
     os.remove(src)
 
 
+
+    
 def findField2(objRA, objDEC, radius):
-    request = "http://skyserver.sdss.org/SkyserverWS/dr12/SearchTools/RadialSearch?"
-    request += "ra=%1.5f&dec=%1.5f&" % (objRA, objDEC)
+    request = "http://skyserver.sdss.org/dr13/en/tools/search/x_results.aspx?"
+    request += "searchtool=Radial&uband=&gband=&rband=&iband=&zband=&jband=&hband=&kband="
+    request += "&TaskName=Skyserver.Search.Radial&ReturnHtml=true&whichphotometry=optical&"
+    request += "coordtype=equatorial&ra=%1.5f&dec=%1.5f" % (objRA, objDEC)
     if radius < 0.01:
-        request += "radius=2&"
+        request += "&radius=2"
     else:
-        request += "radius=%1.2f&" % (radius)
-    request += "whichway=equitorial&limit=1000&format=csv&fp=none&"
-    request += "rband=0,18&whichquery=imaging"
+        request += "&radius=%1.2f" % (radius)
+    request += "&min_u=0&max_u=20&min_g=0&max_g=20&min_r=0&max_r=20&min_i=0&max_i=20"
+    request += "&min_z=0&max_z=20&min_j=0&max_j=20&min_h=0&max_h=20&min_k=0&max_k=20"
+    request += "&format=csv&TableName=&limit=1000"
+
     u = urllib2.urlopen(request)
     table = u.read().split("\n")
     optRun = None
