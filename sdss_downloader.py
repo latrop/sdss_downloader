@@ -17,7 +17,7 @@ import argparse
 import bz2
 
 import numpy as np
-import pyfits
+from astropy.io import fits as pyfits
 
 try:
     from astropy.wcs import WCS
