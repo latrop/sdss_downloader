@@ -37,7 +37,7 @@ Be careful with big values of R: it may take a large amount of disk space.
     -s, --swarp
 If you turn -a parameter on, you will receive several fields for some objects (they
 will be stored in different files with _0, _1, _2, etc endings). You may want to concatenate
-all this pieces into one image by using Emmanuel Bertins SWarp program 
+all this pieces into one image by using Emmanuel Bertins SWarp package
 (http://www.astromatic.net/software/swarp). With -s parameter turned on, the program 
 will automatically concatenate fields using SWarp package when downloading of all fields is finished.
 SWarp package have to be installed on your system.
