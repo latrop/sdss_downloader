@@ -1,5 +1,5 @@
 This program downloads fits files with fields from SDSS DR12 for specified coordinates.
-It needs only Python >= 2.6 to run, nothing else.
+It needs Python >= 2.6 to run. Also numpy and astropy modules have to be installed.
 
 
 INSTALLATION
@@ -79,6 +79,13 @@ must be replaced with * symbol, script will automatically download these fields 
 specified filter. For example, the next line is a correct line for this file:
 
 m81  http://data.sdss3.org/sas/dr12/boss/photoObj/frames/301/4294/4/frame-*-004294-4-0234.fits.bz2 http://data.sdss3.org/sas/dr12/boss/photoObj/frames/301/4294/5/frame-*-004294-5-0234.fits.bz2
+
+    --add_fields %file_with_fields%
+The same as for add_urls option, but run, rerun, camcol, field data are specified
+for objects. Format is object name with colon, followed by integer values for run,
+rerun, camcol and field gouped for every field and separated by semicolons:
+
+obj1: 	4381 301 5 105; 4381 301 5 105
 
 It contains urls for two additional fields for object 'm81'. Note the asterisk
 symbols at filter positions in given urls. 
