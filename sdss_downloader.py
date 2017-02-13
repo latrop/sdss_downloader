@@ -47,7 +47,7 @@ def findField2(objRA, objDEC, radius):
         request += "&radius=%1.2f" % (radius)
     request += "&min_u=0&max_u=20&min_g=0&max_g=20&min_r=0&max_r=20&min_i=0&max_i=20"
     request += "&min_z=0&max_z=20&min_j=0&max_j=20&min_h=0&max_h=20&min_k=0&max_k=20"
-    request += "&format=csv&TableName=&limit=1000"
+    request += "&format=csv&TableName=&limit=99999"
 
     u = urllib2.urlopen(request)
     table = u.read().split("\n")
@@ -97,7 +97,7 @@ def findField2(objRA, objDEC, radius):
 
 
 def getUrl(run, rerun, camcol, field, band):
-    u = "http://dr12.sdss3.org/sas/dr12/boss/photoObj/frames/"
+    u = "http://dr13.sdss.org/sas/dr13/eboss/photoObj/frames/"
     u += "%s/%i/%i/frame-%s-%.6i-%i-%.4i.fits.bz2" % (rerun, run, camcol, band,
                                                       run, camcol, field)
     return u
@@ -342,6 +342,8 @@ parser.add_argument("--scatter", action="store_true", default=False,
                     help="Put every object in a separate directory")
 parser.add_argument("--add_urls", default=None,
                     help="File with additional urls of fields for objects")
+parser.add_argument("--add_fields", default=None,
+                    help="File wuth additional run,rerun,camcol,fields data for objects")
 args = parser.parse_args()
 
 
@@ -488,15 +490,14 @@ with open("fields.dat", "w", buffering=0) as outFile:
         outFile.write("\n")
         
         # If there are additional urls
-        thereAreAddFields = False
+        if (args.add_fields is not None) or (args.add_urls is not None):
+            addNames = {band:[] for band in bandlist}
         if args.add_urls is not None:
-            addNames = {}
             for line in open(args.add_urls):
                 if line.split()[0] == galName:
                     listOfAddUrls = line.split()[1:]
                     thereAreAddFields = True
                     for band in bandlist:
-                        addNames[band] = []
                         for url in listOfAddUrls:
                             urlBand = url.replace("*", band)
                             outNameAdd = "./downloads/%s_%s" % (galName, urlBand.split("/")[-1])
@@ -504,12 +505,28 @@ with open("fields.dat", "w", buffering=0) as outFile:
                             print "Downloading additional field %s" % (outNameAdd)
                             subprocess.call("wget -nv -O %s %s" % (outNameAdd, urlBand), shell=True)
                     break
+        if args.add_fields is not None:
+            for line in open(args.add_fields):
+                if line.split(":")[0] == galName:
+                    listOfAddFields = line.split(":")[1]
+                    for runData in listOfAddFields.split(";"):
+                        run = int(runData.split()[0])
+                        rerun = int(runData.split()[1])
+                        camcol = int(runData.split()[2])
+                        field = int(runData.split()[3])
+                        for band in bandlist:
+                            url = getUrl(run, rerun, camcol, field, band)
+                            outNameAdd = "./downloads/%s_%s" % (galName, url.split("/")[-1])
+                            addNames[band].append(outNameAdd[:-4])
+                            print "Downloading additional field %s" % (outNameAdd)
+                            subprocess.call("wget -nv -O %s %s" % (outNameAdd, url), shell=True)
+            
 
         # Concatenating fields
         if args.swarp and (len(objFieldList) > 1):
             for band in bandlist:
                 listOfImages = ["./downloads/%s_%i_%s.fits" % (galName, i, band) for i in xrange(len(objFieldList))]
-                if (args.add_urls is not None) and thereAreAddFields:
+                if (args.add_urls is not None) or (args.add_fields is not None):
                     listOfImages.extend(addNames[band])
                 if args.convert:
                     GAINList, READOUTList, m0List, refM0 = reduce_to_same_m0(listOfImages)
