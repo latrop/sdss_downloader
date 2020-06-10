@@ -8,7 +8,8 @@ from threading import Thread
 import subprocess
 from math import hypot, log10, sqrt
 from time import time, sleep
-import urllib2
+import urllib.request
+import urllib
 import sys
 import os
 import glob
@@ -17,7 +18,7 @@ import argparse
 import bz2
 
 import numpy as np
-from astropy.io import fits as pyfits
+from astropy.io import fits
 
 try:
     from astropy.wcs import WCS
@@ -28,16 +29,14 @@ except ImportError:
 
 def move(src, dst):
     if not os.path.isfile(src):
-        print "File %s not found and cannot be moved"
+        print("File %s not found and cannot be moved")
         return
     shutil.copy(src, dst)
     os.remove(src)
 
 
-
-    
 def findField2(objRA, objDEC, radius):
-    request = "http://skyserver.sdss.org/dr13/en/tools/search/x_results.aspx?"
+    request = "http://skyserver.sdss.org/dr14/en/tools/search/x_results.aspx?"
     request += "searchtool=Radial&uband=&gband=&rband=&iband=&zband=&jband=&hband=&kband="
     request += "&TaskName=Skyserver.Search.Radial&ReturnHtml=true&whichphotometry=optical&"
     request += "coordtype=equatorial&ra=%1.5f&dec=%1.5f" % (objRA, objDEC)
@@ -49,8 +48,8 @@ def findField2(objRA, objDEC, radius):
     request += "&min_z=0&max_z=20&min_j=0&max_j=20&min_h=0&max_h=20&min_k=0&max_k=20"
     request += "&format=csv&TableName=&limit=99999"
 
-    u = urllib2.urlopen(request)
-    table = u.read().split("\n")
+    u = urllib.request.urlopen(request)
+    table = u.read().decode().split("\n")
     optRun = None
     optRerun = None
     optCamcol = None
@@ -97,7 +96,7 @@ def findField2(objRA, objDEC, radius):
 
 
 def getUrl(run, rerun, camcol, field, band):
-    u = "http://dr13.sdss.org/sas/dr13/eboss/photoObj/frames/"
+    u = "http://dr14.sdss.org/sas/dr14/eboss/photoObj/frames/"
     u += "%s/%i/%i/frame-%s-%.6i-%i-%.4i.fits.bz2" % (rerun, run, camcol, band,
                                                       run, camcol, field)
     return u
@@ -112,32 +111,26 @@ def getUrlPs(run, rerun, camcol, field):
 
 def testUrlExists(url):
     try:
-        u = urllib2.urlopen(url)
+        u = urllib.request.urlopen(url)
         code = u.code
         meta = u.info()
-        file_size = int(meta.getheaders("Content-Length")[0])
+        file_size = int(meta["Content-Length"])
         if code == 200:
             return file_size
         return -1
-    except urllib2.HTTPError:
+    except urllib.request.HTTPError:
         return -1
 
 
 def download(url, passband, file_name):
-    try:
-        u = urllib2.urlopen(url)
-    except urllib2.HTTPError:
-        print ""
-        return -1
-    meta = u.info()
-    file_size = int(meta.getheaders("Content-Length")[0])
     fName = "./downloads/%s_%s.fits" % (file_name, passband)
     if passband != "ps":  # PSF-files are not compressed on SDSS servers
         fName += ".bz2"
-    f = open(fName, 'wb')
-    buff = u.read(file_size)
-    f.write(buff)
-    f.close()
+    try:
+        urllib.request.urlretrieve(url, fName)
+    except urllib.request.HTTPError:
+        print("")
+        return -1
 
 
 def threadsAlive(listOfThreads):
@@ -147,11 +140,11 @@ def threadsAlive(listOfThreads):
     return False
 
 
-### some sdss functions are below
+# some sdss functions are below
 def prep_ima(gal):
     new_gal = "./prep_ima_tmp.fits"
     # This function re-writes pixel values given in NMgy to ADU
-    hdulist = pyfits.open(gal, do_not_scale_image_data=True, mode='update')
+    hdulist = fits.open(gal, do_not_scale_image_data=True, mode='update')
     img = hdulist[0].data
     (dimy, dimx) = img.shape
     cimg = np.zeros(shape=(dimy, dimx))
@@ -160,8 +153,8 @@ def prep_ima(gal):
         cimg[i] = calib
     dn = img/cimg
     shutil.copy(gal, new_gal)
-    hdulist1 = pyfits.open(new_gal, do_not_scale_image_data=True,
-                           mode='update')
+    hdulist1 = fits.open(new_gal, do_not_scale_image_data=True,
+                         mode='update')
     img_new = hdulist1[0].data
     for i in range(dimy):
         for k in range(dimx):
@@ -173,12 +166,12 @@ def prep_ima(gal):
 
 def change_m0(fitsName, oldM0Value, refM0):
     # function changes value of magnitude zeropoint to a given one
-    hdulist = pyfits.open(fitsName)
+    hdulist = fits.open(fitsName)
     data = hdulist[0].data
     header = hdulist[0].header
     deltaM0 = refM0 - oldM0Value
     data = data * (10.0**(0.4*deltaM0))
-    outHDU = pyfits.PrimaryHDU(data=data, header=header)
+    outHDU = fits.PrimaryHDU(data=data, header=header)
     outHDU.writeto("tmp.fits")
     os.remove(fitsName)
     move("tmp.fits", fitsName)
@@ -272,7 +265,7 @@ def gain_dark_SDSS(camcol, band, run):
 def SDSS_dr8(gal_image):
     # http://data.sdss3.org/datamodel/files/BOSS_PHOTOOBJ/
     # frames/RERUN/RUN/CAMCOL/frame.html
-    hdulist = pyfits.open(gal_image)
+    hdulist = fits.open(gal_image)
     prihdr = hdulist[0].header
     run = int(prihdr['RUN'])
     band = str(prihdr['FILTER'])
@@ -310,8 +303,8 @@ def reduce_to_same_m0(listOfImages):
             change_m0(fName, m0, refM0)
         GAINList.append(GAIN)
         READOUTList.append(READOUT)
-        hdu = pyfits.open(fName, do_not_scale_image_data=True,
-                          mode="update")
+        hdu = fits.open(fName, do_not_scale_image_data=True,
+                        mode="update")
         header = hdu[0].header
         header["M0"] = refM0
         header["EXPTIME"] = 1.0
@@ -319,10 +312,8 @@ def reduce_to_same_m0(listOfImages):
     return GAINList, READOUTList, m0List, refM0
 
 
-
 # parsing the argument line here
-parser = argparse.ArgumentParser(
-    description="Download fits-files of fields for specified coordinates")
+parser = argparse.ArgumentParser(description="Download fits-files of fields for specified coordinates")
 parser.add_argument("filters", help="List of filters (for example gri or uiz)")
 parser.add_argument("-i", "--input", default="coordinates.dat",
                     help="File with coordinates to download")
@@ -348,7 +339,7 @@ args = parser.parse_args()
 
 
 bandlist = args.filters
-# Make dirs for all bands and psf in case all files for the same 
+# Make dirs for all bands and psf in case all files for the same
 # colour are in the same directories (scatter option is turned off)
 if not args.scatter:
     for band in bandlist:
@@ -374,21 +365,17 @@ if args.swarp:
         if rCode == 0:
             swarpName = "SWarp"
         else:
-            print "\033[31m Error: SWarp was not found on your system.\033[0m"
-            print "\033[31m The command has to be either 'swarp' or 'SWarp'\033[0m"
-            print "\033[31m Intall SWarp package or try to run this script without -s option.\033[0m"
+            print("\033[31m Error: SWarp was not found on your system.\033[0m")
+            print("\033[31m The command has to be either 'swarp' or 'SWarp'\033[0m")
+            print("\033[31m Intall SWarp package or try to run this script without -s option.\033[0m")
             exit(1)
 
 
-listOfCoords = open(args.input).readlines()
+listOfCoords = [l for l in open(args.input).readlines() if not l.startswith("#")]
 counter = 0
-errFile = open("errors_404.dat", "w", buffering=0)
-errFile.truncate(0)
-with open("fields.dat", "w", buffering=0) as outFile:
-    outFile.truncate(0)
+errFile = open("errors_404.dat", "w", buffering=1)
+with open("fields.dat", "w", buffering=1) as outFile:
     for line in listOfCoords:
-        if line.startswith("#") or line.startswith("!"):
-            continue
         counter += 1
         params = line.split()
 
@@ -405,53 +392,53 @@ with open("fields.dat", "w", buffering=0) as outFile:
             msg += "%1.5f %1.5f: '%s'  (%i/%i) \033[0m" % (ra, dec,
                                                            galName, counter,
                                                            len(listOfCoords))
-            print msg
+            print(msg)
         else:
-            print "Invalid number of columns in input file %s" % args.input
+            print("Invalid number of columns in input file %s" % args.input)
             sys.exit(1)
         objFieldList, objID = findField2(ra, dec, r_adj)
         if objID is None:
-            print "\033[31m Error! No object was found at given coordinates.\033[0m"
-            print "\033[31m This area is probably outside of the SDSS footprint.\033[0m"
+            print("\033[31m Error! No object was found at given coordinates.\033[0m")
+            print("\033[31m This area is probably outside of the SDSS footprint.\033[0m")
             errFile.write("%s  %1.6f  %1.6f \n" % (galName, ra, dec))
             continue
 
         if len(objFieldList) > 1:
-            print "There are %i files for this object" % (len(objFieldList))
+            print("There are %i files for this object" % (len(objFieldList)))
         outFile.write("%s  %1.6f  %1.6f  " % (galName, ra, dec))
-        for ifield in xrange(len(objFieldList)):
+        for ifield in range(len(objFieldList)):
             startTime = time()
             if len(objFieldList) > 1:
-                print "Downloading (%i/%i)" % (ifield + 1, len(objFieldList))
+                print("Downloading (%i/%i)" % (ifield + 1, len(objFieldList)))
                 curGalName = galName + "_" + str(ifield)
             else:
-                curGalName = galName
+                curGalName = galName + "_0"
 
             run, rerun, camcol, field = objFieldList[ifield]
             # Check if fits files exist for all filters:
-            print " Checking file existense:"
+            print(" Checking file existense:")
             allExist = True
             urls = {}
             for band in bandlist:
-                print "                    %s" % (band),
+                print("                    %s" % (band), end="")
                 url = getUrl(run, rerun, camcol, field, band)
                 answer = testUrlExists(url)
                 if answer == -1:
                     allExist = False
-                    print "\033[31m [Fail!] \033[0m\n"
+                    print("\033[31m [Fail!] \033[0m\n")
                     break
-                print "\033[32m [OK] \033[0m   (%i bytes)" % (answer)
+                print("\033[32m [OK] \033[0m   (%i bytes)" % (answer))
                 urls[band] = url
             if args.ps:
                 # Check if ps file exists
-                print "                   ps",
+                print("                   ps",)
                 urlPs = getUrlPs(run, rerun, camcol, field)
                 answer = testUrlExists(urlPs)
                 if answer == -1:
                     allExist = False
-                    print "\033[31m [Fail!] \033[0m\n"
+                    print("\033[31m [Fail!] \033[0m\n")
                 else:
-                    print "\033[32m [OK] \033[0m   (%i bytes)" % (answer)
+                    print("\033[32m [OK] \033[0m   (%i bytes)" % (answer))
             if not allExist:
                 errFile.write("%s  %1.6f  %1.6f \n" % (galName, ra, dec))
                 continue
@@ -469,7 +456,7 @@ with open("fields.dat", "w", buffering=0) as outFile:
                 dth.daemon = True
                 dth.start()
                 downloadThreads.append(dth)
-            print " Downloading",
+            print(" Downloading", end="")
             while threadsAlive(downloadThreads):
                 sys.stdout.write(".")
                 sys.stdout.flush()
@@ -485,13 +472,15 @@ with open("fields.dat", "w", buffering=0) as outFile:
                 sleep(0.333)
             msg = "         \033[34m [DONE] \033[0m    "
             msg += "(%1.2f sec)\n\n" % (time()-startTime)
-            print msg
+            print(msg)
             outFile.write(" %s.fits " % (curGalName))
         outFile.write("\n")
-        
+
         # If there are additional urls
         if (args.add_fields is not None) or (args.add_urls is not None):
-            addNames = {band:[] for band in bandlist}
+            addNames = {band: [] for band in bandlist}
+        else:
+            addNames = None
         if args.add_urls is not None:
             for line in open(args.add_urls):
                 if line.split()[0] == galName:
@@ -502,7 +491,7 @@ with open("fields.dat", "w", buffering=0) as outFile:
                             urlBand = url.replace("*", band)
                             outNameAdd = "./downloads/%s_%s" % (galName, urlBand.split("/")[-1])
                             addNames[band].append(outNameAdd[:-4])
-                            print "Downloading additional field %s" % (outNameAdd)
+                            print("Downloading additional field %s" % (outNameAdd))
                             subprocess.call("wget -nv -O %s %s" % (outNameAdd, urlBand), shell=True)
                     break
         if args.add_fields is not None:
@@ -518,19 +507,19 @@ with open("fields.dat", "w", buffering=0) as outFile:
                             url = getUrl(run, rerun, camcol, field, band)
                             outNameAdd = "./downloads/%s_%s" % (galName, url.split("/")[-1])
                             addNames[band].append(outNameAdd[:-4])
-                            print "Downloading additional field %s" % (outNameAdd)
+                            print("Downloading additional field %s" % (outNameAdd))
                             subprocess.call("wget -nv -O %s %s" % (outNameAdd, url), shell=True)
-            
 
         # Concatenating fields
-        if args.swarp and (len(objFieldList) > 1):
+        if args.swarp and ((len(objFieldList) > 1) or (addNames is not None)):
             for band in bandlist:
-                listOfImages = ["./downloads/%s_%i_%s.fits" % (galName, i, band) for i in xrange(len(objFieldList))]
+                listOfImages = ["./downloads/%s_%i_%s.fits" % (galName, i, band) for i in range(len(objFieldList))]
                 if (args.add_urls is not None) or (args.add_fields is not None):
                     listOfImages.extend(addNames[band])
+                print(listOfImages)
                 if args.convert:
                     GAINList, READOUTList, m0List, refM0 = reduce_to_same_m0(listOfImages)
-                print "Running SWarp for %s band..." % (band)
+                print("Running SWarp for %s band..." % (band))
                 callSt = "%s -verbose_type quiet -BACK_TYPE MANUAL " % (swarpName)
                 callSt += " ".join(["%s[0]" % (s) for s in listOfImages])
                 subprocess.call(callSt, shell="True")
@@ -542,9 +531,9 @@ with open("fields.dat", "w", buffering=0) as outFile:
                         os.remove(fN)
                 # store mean keywords to coadded file
                 if args.convert:
-                    hdu = pyfits.open("./downloads/%s_%s.fits" % (galName, band),
-                                      do_not_scale_image_data=True,
-                                      mode="update")
+                    hdu = fits.open("./downloads/%s_%s.fits" % (galName, band),
+                                    do_not_scale_image_data=True,
+                                    mode="update")
                     header = hdu[0].header
                     header["GAIN"] = np.mean(GAINList)
                     header["READOUT"] = np.mean(READOUTList)
@@ -553,31 +542,33 @@ with open("fields.dat", "w", buffering=0) as outFile:
                     hdu.flush()
 
         # Convert singlefield images
-        if args.convert and (len(objFieldList) == 1):
+        if args.convert and ((len(objFieldList) == 1) and (addNames is None)):
             for band in bandlist:
-                fName = "./downloads/%s_%s.fits" % (galName, band)
+                fName = "./downloads/%s_0_%s.fits" % (galName, band)
                 bunzip("%s.bz2" % (fName))
                 prep_ima(fName)
                 GAIN, READOUT, m0 = SDSS_dr8(fName)
-                hdu = pyfits.open(fName, do_not_scale_image_data=True,
-                                  mode="update")
+                hdu = fits.open(fName, do_not_scale_image_data=True,
+                                mode="update")
                 header = hdu[0].header
                 header["M0"] = m0
                 header["EXPTIME"] = 1.0
                 hdu.flush()
+                move("./downloads/%s_0_%s.fits" % (galName, band),
+                     "./downloads/%s_%s.fits" % (galName, band))
 
         # Crop images
         if args.trim and (not wcsOK):
-            print "Astropy module was not found. Images cannot be trimmed"
+            print("Astropy module was not found. Images cannot be trimmed")
         elif args.trim and wcsOK:
-            print "Cropping..."
+            print("Cropping...")
             # At first determine the common size of cropping area
             # (so all images will be of the same size)
             pixelCoords = {}
             cropSizes = []
             for band in bandlist:
                 fName = "./downloads/%s_%s.fits" % (galName, band)
-                hdu = pyfits.open(fName)
+                hdu = fits.open(fName)
                 data = hdu[0].data
                 wcs = WCS(fName)
                 xGalPix, yGalPix = wcs.wcs_world2pix([[ra, dec]], 1)[0]
@@ -587,9 +578,9 @@ with open("fields.dat", "w", buffering=0) as outFile:
                 pixelCoords[band] = (int(xGalPix), int(yGalPix))
                 cropSizes.append(size)
             commonCropSize = int(min(cropSizes))
-            for band in bandlist:            
+            for band in bandlist:
                 fName = "./downloads/%s_%s.fits" % (galName, band)
-                hdu = pyfits.open(fName)
+                hdu = fits.open(fName)
                 data = hdu[0].data
                 header = hdu[0].header
                 xCropMin = pixelCoords[band][0] - commonCropSize
@@ -597,7 +588,7 @@ with open("fields.dat", "w", buffering=0) as outFile:
                 yCropMin = pixelCoords[band][1] - commonCropSize
                 yCropMax = pixelCoords[band][1] + commonCropSize
                 data = data[yCropMin:yCropMax, xCropMin:xCropMax]
-                outHDU = pyfits.PrimaryHDU(data=data, header=header)
+                outHDU = fits.PrimaryHDU(data=data, header=header)
                 fOutName = "./downloads/%s_%s_trim.fits" % (galName, band)
                 if os.path.exists(fOutName):
                     os.remove(fOutName)
