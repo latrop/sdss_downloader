@@ -1,5 +1,5 @@
-This program downloads fits files with fields from SDSS DR12 for specified coordinates.
-It needs Python >= 2.6 to run. Also numpy and astropy modules have to be installed.
+This program downloads fits files with fields from SDSS DR16 for specified coordinates.
+It needs Python >= 3.4 to run. Also numpy and astropy modules have to be installed.
 
 
 INSTALLATION
@@ -25,11 +25,11 @@ KEYS
     -i, --input FILENAME
 specified a file with table of coordinates (in case of its name is not 'coordinates.dat')
 
-    -a, --adjacent            
+    -a, --adjacent
 If the object is located close to the edge of the field (or if object size is big) it may
 be split onto two or more adjacent fields. Setting the -a parameter force the program to
 search and download all fields within specified radius around the object. The radius is
-stored in fourth column of the input file (units -- arcminutes). 
+stored in fourth column of the input file (units -- arcminutes).
 Note that about one-third of SDSS is overlapped by two or more fields and with -a parameter
 the program will download them all. The maximum value of radius is 60 arcminutes.
 Be careful with big values of R: it may take a large amount of disk space.
@@ -38,7 +38,7 @@ Be careful with big values of R: it may take a large amount of disk space.
 If you turn -a parameter on, you will receive several fields for some objects (they
 will be stored in different files with _0, _1, _2, etc endings). You may want to concatenate
 all this pieces into one image by using Emmanuel Bertins SWarp package
-(http://www.astromatic.net/software/swarp). With -s parameter turned on, the program 
+(http://www.astromatic.net/software/swarp). With -s parameter turned on, the program
 will automatically concatenate fields using SWarp package when downloading of all fields is finished.
 SWarp package have to be installed on your system.
 
@@ -59,9 +59,6 @@ Crop (trim) image of galaxy to size given in the fourth column of the input file
 file with size 2*r and with galaxy located at the centre of the image.
 Note: to run this option one must have the astropy module installed. Try 'pip install astropy' to install it.
 See astropy.org for details.
-
-    -p, --ps
-Download psFields files (if you want to get a PSF data). Will be stored into downloads/ps directory.
 
     --scatter
 This option forces the package to place all files related to every object into separate
@@ -88,7 +85,7 @@ rerun, camcol and field gouped for every field and separated by semicolons:
 obj1: 	4381 301 5 105; 4381 301 5 105
 
 It contains urls for two additional fields for object 'm81'. Note the asterisk
-symbols at filter positions in given urls. 
+symbols at filter positions in given urls.
 
 Important notes about --add_urls option.
 1) This option requires wget package to be installed on your system.

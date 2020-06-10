@@ -36,7 +36,7 @@ def move(src, dst):
 
 
 def findField2(objRA, objDEC, radius):
-    request = "http://skyserver.sdss.org/dr14/en/tools/search/x_results.aspx?"
+    request = "http://skyserver.sdss.org/dr16/en/tools/search/x_results.aspx?"
     request += "searchtool=Radial&uband=&gband=&rband=&iband=&zband=&jband=&hband=&kband="
     request += "&TaskName=Skyserver.Search.Radial&ReturnHtml=true&whichphotometry=optical&"
     request += "coordtype=equatorial&ra=%1.5f&dec=%1.5f" % (objRA, objDEC)
@@ -96,15 +96,8 @@ def findField2(objRA, objDEC, radius):
 
 
 def getUrl(run, rerun, camcol, field, band):
-    u = "http://dr14.sdss.org/sas/dr14/eboss/photoObj/frames/"
+    u = "http://dr16.sdss.org/sas/dr16/eboss/photoObj/frames/"
     u += "%s/%i/%i/frame-%s-%.6i-%i-%.4i.fits.bz2" % (rerun, run, camcol, band,
-                                                      run, camcol, field)
-    return u
-
-
-def getUrlPs(run, rerun, camcol, field):
-    u = "http://dr12.sdss3.org/sas/dr12/env/PHOTO_REDUX/"
-    u += "%s/%i/objcs/%i/psField-%.6i-%i-%.4i.fit" % (rerun, run, camcol,
                                                       run, camcol, field)
     return u
 
@@ -135,7 +128,7 @@ def download(url, passband, file_name):
 
 def threadsAlive(listOfThreads):
     for th in listOfThreads:
-        if th.isAlive():
+        if th.is_alive():
             return True
     return False
 
@@ -327,8 +320,6 @@ parser.add_argument("-f", "--free", action="store_true", default=False,
                     help="Remove individual fields after concatenation")
 parser.add_argument("-t", "--trim", action="store_true", default=False,
                     help="Crop image to galaxy size")
-parser.add_argument("-p", "--ps", action="store_true", default=False,
-                    help="Download psField files")
 parser.add_argument("--scatter", action="store_true", default=False,
                     help="Put every object in a separate directory")
 parser.add_argument("--add_urls", default=None,
@@ -371,7 +362,7 @@ if args.swarp:
             exit(1)
 
 
-listOfCoords = [l for l in open(args.input).readlines() if not l.startswith("#")]
+listOfCoords = [lst for lst in open(args.input).readlines() if not lst.startswith("#")]
 counter = 0
 errFile = open("errors_404.dat", "w", buffering=1)
 with open("fields.dat", "w", buffering=1) as outFile:
@@ -429,16 +420,6 @@ with open("fields.dat", "w", buffering=1) as outFile:
                     break
                 print("\033[32m [OK] \033[0m   (%i bytes)" % (answer))
                 urls[band] = url
-            if args.ps:
-                # Check if ps file exists
-                print("                   ps",)
-                urlPs = getUrlPs(run, rerun, camcol, field)
-                answer = testUrlExists(urlPs)
-                if answer == -1:
-                    allExist = False
-                    print("\033[31m [Fail!] \033[0m\n")
-                else:
-                    print("\033[32m [OK] \033[0m   (%i bytes)" % (answer))
             if not allExist:
                 errFile.write("%s  %1.6f  %1.6f \n" % (galName, ra, dec))
                 continue
@@ -447,12 +428,6 @@ with open("fields.dat", "w", buffering=1) as outFile:
             for band in bandlist:
                 dth = Thread(target=download,
                              args=(urls[band], band, curGalName))
-                dth.daemon = True
-                dth.start()
-                downloadThreads.append(dth)
-            # Downloading ps file
-            if args.ps:
-                dth = Thread(target=download, args=(urlPs, "ps", curGalName))
                 dth.daemon = True
                 dth.start()
                 downloadThreads.append(dth)
@@ -516,7 +491,6 @@ with open("fields.dat", "w", buffering=1) as outFile:
                 listOfImages = ["./downloads/%s_%i_%s.fits" % (galName, i, band) for i in range(len(objFieldList))]
                 if (args.add_urls is not None) or (args.add_fields is not None):
                     listOfImages.extend(addNames[band])
-                print(listOfImages)
                 if args.convert:
                     GAINList, READOUTList, m0List, refM0 = reduce_to_same_m0(listOfImages)
                 print("Running SWarp for %s band..." % (band))
