@@ -336,9 +336,6 @@ if not args.scatter:
     for band in bandlist:
         if not os.path.exists("./downloads/%s" % (band)):
             os.makedirs("./downloads/%s" % (band))
-    if args.ps:
-        if not os.path.exists("./downloads/ps/"):
-            os.makedirs("./downloads/ps/")
 else:
     # if every object will be placed in the separate directory
     # (scatter option is on) create just the main downloads directory for now
@@ -590,13 +587,6 @@ with open("fields.dat", "w", buffering=1) as outFile:
                 if args.trim:
                     fileList.append("./downloads/%s_%s_trim.fits" % (galName, band))
                 dst = "./downloads/%s/" % (band)
-                for src in fileList:
-                    if os.path.exists(src):
-                        move(src, dst)
-            if args.ps:
-                # move psFields
-                fileList = glob.glob("./downloads/%s_*ps.fits" % (galName))
-                dst = "./downloads/ps/"
                 for src in fileList:
                     if os.path.exists(src):
                         move(src, dst)
