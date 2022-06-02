@@ -559,6 +559,9 @@ with open("fields.dat", "w", buffering=1) as outFile:
                 yCropMin = pixelCoords[band][1] - commonCropSize
                 yCropMax = pixelCoords[band][1] + commonCropSize
                 data = data[yCropMin:yCropMax, xCropMin:xCropMax]
+                # Fix WCS accoring to cropping
+                header["CRPIX1"] -= xCropMin
+                header["CRPIX2"] -= yCropMin
                 outHDU = fits.PrimaryHDU(data=data, header=header)
                 fOutName = "./downloads/%s_%s_trim.fits" % (galName, band)
                 if os.path.exists(fOutName):
