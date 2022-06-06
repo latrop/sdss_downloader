@@ -12,6 +12,7 @@ import urllib.request
 import urllib
 import sys
 import os
+from pathlib import Path
 import glob
 import shutil
 import argparse
@@ -36,7 +37,7 @@ def move(src, dst):
 
 
 def findField2(objRA, objDEC, radius):
-    request = "http://skyserver.sdss.org/dr16/en/tools/search/x_results.aspx?"
+    request = "http://skyserver.sdss.org/dr17/en/tools/search/x_results.aspx?"
     request += "searchtool=Radial&uband=&gband=&rband=&iband=&zband=&jband=&hband=&kband="
     request += "&TaskName=Skyserver.Search.Radial&ReturnHtml=true&whichphotometry=optical&"
     request += "coordtype=equatorial&ra=%1.5f&dec=%1.5f" % (objRA, objDEC)
@@ -48,6 +49,7 @@ def findField2(objRA, objDEC, radius):
     request += "&min_z=0&max_z=20&min_j=0&max_j=20&min_h=0&max_h=20&min_k=0&max_k=20"
     request += "&format=csv&TableName=&limit=99999"
 
+    print(request)
     u = urllib.request.urlopen(request)
     table = u.read().decode().split("\n")
     optRun = None
@@ -95,9 +97,28 @@ def findField2(objRA, objDEC, radius):
     return fList, optObjID
 
 
+def findField3(ra_target, dec_target, radius=None):
+    #
+    #  All three parameters are in degrees
+    #
+    ra, dec, run, rerun, camcol, field = np.genfromtxt("sdss_flist.dat", unpack=True)
+    if (radius is not None) and (radius > 0):
+        radius = max(20/60, radius)
+        dist = np.hypot(ra-ra_target, dec-dec_target)
+        inds = np.where(dist < radius)[0]
+        fList = []
+        for i in inds:
+            fList.append((run[i], rerun[i], camcol[i], field[i]))
+    else:
+        dist = np.hypot(ra-ra_target, dec-dec_target)
+        idx = np.argmin(dist)
+        fList = ((run[idx], rerun[idx], camcol[idx], field[idx]))
+    return fList
+
+
 def getUrl(run, rerun, camcol, field, band):
     u = "http://dr16.sdss.org/sas/dr16/eboss/photoObj/frames/"
-    u += "%s/%i/%i/frame-%s-%.6i-%i-%.4i.fits.bz2" % (rerun, run, camcol, band,
+    u += "%i/%i/%i/frame-%s-%.6i-%i-%.4i.fits.bz2" % (rerun, run, camcol, band,
                                                       run, camcol, field)
     return u
 
@@ -373,7 +394,7 @@ with open("fields.dat", "w", buffering=1) as outFile:
             ra = float(params[1])
             dec = float(params[2])
             if args.adjacent is True:
-                r_adj = float(params[3])
+                r_adj = max(5, float(params[3])) / 60
             else:
                 r_adj = 0.0
             msg = "\033[33m Downloading field for "
@@ -384,8 +405,12 @@ with open("fields.dat", "w", buffering=1) as outFile:
         else:
             print("Invalid number of columns in input file %s" % args.input)
             sys.exit(1)
-        objFieldList, objID = findField2(ra, dec, r_adj)
-        if objID is None:
+        dst = "./downloads/%s/" % (galName)
+        if os.path.exists(dst):
+            print(galName, "already done")
+            continue
+        objFieldList = findField3(ra, dec, r_adj)
+        if len(objFieldList) == 0:
             print("\033[31m Error! No object was found at given coordinates.\033[0m")
             print("\033[31m This area is probably outside of the SDSS footprint.\033[0m")
             errFile.write("%s  %1.6f  %1.6f \n" % (galName, ra, dec))
@@ -485,10 +510,15 @@ with open("fields.dat", "w", buffering=1) as outFile:
         # Concatenating fields
         if args.swarp and ((len(objFieldList) > 1) or (addNames is not None)):
             for band in bandlist:
-                listOfImages = ["./downloads/%s_%i_%s.fits" % (galName, i, band) for i in range(len(objFieldList))]
+                listOfImages = []
+                for i in range(len(objFieldList)):
+                    img = "./downloads/%s_%i_%s.fits" % (galName, i, band)
+                    if Path(img+".bz2").exists():
+                        listOfImages.append(img)
                 if (args.add_urls is not None) or (args.add_fields is not None):
                     listOfImages.extend(addNames[band])
                 if args.convert:
+                    print(listOfImages)
                     GAINList, READOUTList, m0List, refM0 = reduce_to_same_m0(listOfImages)
                 print("Running SWarp for %s band..." % (band))
                 callSt = "%s -verbose_type quiet -BACK_TYPE MANUAL " % (swarpName)
@@ -543,7 +573,7 @@ with open("fields.dat", "w", buffering=1) as outFile:
                 data = hdu[0].data
                 wcs = WCS(fName)
                 xGalPix, yGalPix = wcs.wcs_world2pix([[ra, dec]], 1)[0]
-                size = min(r_adj*60.0/0.396127, xGalPix, yGalPix,
+                size = min(r_adj*3600.0/0.396127, xGalPix, yGalPix,
                            data.shape[1]-xGalPix, data.shape[0]-yGalPix)
                 hdu.close()
                 pixelCoords[band] = (int(xGalPix), int(yGalPix))
